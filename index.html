@@ -658,7 +658,7 @@
       </section>
     </div>
 
-    <div class="options">
+    <div class="options" autocomplete="off">
       <div class="opt-group">
         <label for="delimiter">分隔符</label>
         <select id="delimiter">
@@ -701,13 +701,13 @@
       </div>
       <div class="opt-group" style="display:flex;align-items:flex-end;">
         <label class="checkbox-row">
-          <input type="checkbox" id="dedupe" checked />
+          <input type="checkbox" id="dedupe" checked="checked" autocomplete="off" />
           去重
         </label>
       </div>
       <div class="opt-group" style="display:flex;align-items:flex-end;">
         <label class="checkbox-row">
-          <input type="checkbox" id="skipHeader" checked />
+          <input type="checkbox" id="skipHeader" checked="checked" autocomplete="off" />
           跳过首行（表头）
         </label>
       </div>
@@ -1099,6 +1099,14 @@
     });
 
     applyTheme(localStorage.getItem("dqf-theme") || "dark");
+
+    function applyDefaultOptions() {
+      $("dedupe").defaultChecked = true;
+      $("dedupe").checked = true;
+      $("skipHeader").defaultChecked = true;
+      $("skipHeader").checked = true;
+    }
+    applyDefaultOptions();
 
     // Live convert
     input.addEventListener("input", convert);
