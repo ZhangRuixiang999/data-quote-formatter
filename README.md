@@ -4,7 +4,31 @@
 
 ## 在线使用
 
-部署后访问：**https://\<你的用户名\>.github.io/data-quote-formatter/**
+部署完成后访问：**https://zhangruixiang999.github.io/data-quote-formatter/**
+
+## 部署到 GitHub Pages
+
+在项目目录执行（首次需登录 GitHub）：
+
+```bash
+chmod +x deploy.sh
+./deploy.sh
+```
+
+或手动操作：
+
+```bash
+# 1. 安装并登录 GitHub CLI
+brew install gh
+gh auth login
+
+# 2. 创建仓库并推送
+gh repo create data-quote-formatter --public --source=. --remote=origin --push
+
+# 3. 在仓库 Settings → Pages → Source 选择「GitHub Actions」
+```
+
+推送后 GitHub Actions 会自动构建，约 1～2 分钟可访问上述链接。
 
 ## 功能
 
