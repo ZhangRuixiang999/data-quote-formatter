@@ -1,0 +1,1553 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>数据格式化工具</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <style>
+    :root,
+    [data-theme="dark"] {
+      --bg: #0f1419;
+      --surface: #1a222d;
+      --surface-deep: #121820;
+      --surface-hover: #222c3a;
+      --border: #2d3a4d;
+      --text: #e8edf4;
+      --muted: #8b9cb3;
+      --placeholder: #5a6b82;
+      --code-text: #c5d0de;
+      --accent: #3d9cf5;
+      --accent-soft: rgba(61, 156, 245, 0.12);
+      --positive: #3ecf8e;
+      --warning: #f5a623;
+      --shadow: rgba(0, 0, 0, 0.4);
+      --upload-hover: rgba(61, 156, 245, 0.08);
+    }
+    [data-theme="light"] {
+      --bg: #f0f3f8;
+      --surface: #ffffff;
+      --surface-deep: #f7f9fc;
+      --surface-hover: #eef2f7;
+      --border: #d8e0ea;
+      --text: #1a2332;
+      --muted: #64748b;
+      --placeholder: #94a3b8;
+      --code-text: #334155;
+      --accent: #2563eb;
+      --accent-soft: rgba(37, 99, 235, 0.1);
+      --positive: #059669;
+      --warning: #d97706;
+      --shadow: rgba(15, 23, 42, 0.12);
+      --upload-hover: rgba(37, 99, 235, 0.06);
+    }
+  </style>
+  <style>
+    :root {
+      --radius: 12px;
+      --font: "Noto Sans SC", "DM Sans", system-ui, sans-serif;
+      --mono: "DM Sans", ui-monospace, "SF Mono", monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      transition: background 0.25s, color 0.25s;
+    }
+    .wrap {
+      position: relative;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 2.5rem 1.25rem 4rem;
+    }
+    .header-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+    .header-main { flex: 1; min-width: 0; }
+    header { margin-bottom: 2rem; }
+    header h1 {
+      font-size: clamp(1.4rem, 4vw, 1.75rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 0 0 0.5rem;
+    }
+    header .desc {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.88rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    header .desc code {
+      font-family: var(--mono);
+      font-size: 0.84em;
+      color: var(--code-text);
+    }
+    .badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      background: var(--accent-soft);
+      padding: 0.25rem 0.6rem;
+      border-radius: 6px;
+      margin-bottom: 0.75rem;
+    }
+    .example {
+      margin-top: 1rem;
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--surface-deep);
+      font-size: 0.82rem;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .example code {
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      color: var(--code-text);
+    }
+    .theme-toggle {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-family: inherit;
+      font-size: 0.8rem;
+      padding: 0.45rem 0.75rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--muted);
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .theme-toggle:hover { background: var(--surface-hover); border-color: var(--accent); }
+    .theme-toggle svg { width: 1rem; height: 1rem; flex-shrink: 0; }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+    }
+    @media (max-width: 800px) {
+      .grid { grid-template-columns: 1fr; }
+      header .desc, .example { white-space: normal; }
+    }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 360px;
+      transition: background 0.25s, border-color 0.25s;
+    }
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .panel-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin: 0;
+    }
+    .panel-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+    .panel-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    textarea {
+      flex: 1;
+      width: 100%;
+      min-height: 200px;
+      resize: vertical;
+      border: none;
+      outline: none;
+      background: transparent;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      line-height: 1.55;
+      padding: 1rem;
+    }
+    textarea::placeholder { color: var(--placeholder); }
+    .upload-strip {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.65rem;
+      padding: 0.85rem 1rem;
+      border-top: 1px dashed var(--border);
+      background: var(--surface-deep);
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+      user-select: none;
+    }
+    .upload-strip:hover,
+    .upload-strip.dragover {
+      background: var(--upload-hover);
+      border-top-color: var(--accent);
+    }
+    .upload-strip input { display: none; }
+    .upload-icon {
+      width: 2rem;
+      height: 2rem;
+      border-radius: 8px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .upload-icon svg { width: 1.1rem; height: 1.1rem; }
+    .upload-text { text-align: left; min-width: 0; }
+    .upload-text strong {
+      display: block;
+      font-size: 0.84rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .upload-text span {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 0.1rem;
+    }
+    .output-box {
+      flex: 1;
+      min-height: 260px;
+      padding: 1rem;
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      line-height: 1.55;
+      color: var(--code-text);
+      word-break: break-all;
+      white-space: pre-wrap;
+      overflow-y: auto;
+    }
+    .output-box.empty { color: var(--placeholder); font-style: italic; }
+    .options {
+      margin-top: 1.25rem;
+      padding: 1rem 1.15rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 1rem 1.5rem;
+      transition: background 0.25s, border-color 0.25s;
+    }
+    .opt-group label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      margin-bottom: 0.4rem;
+    }
+    .opt-group select,
+    .opt-group input[type="number"] {
+      width: 100%;
+      font-family: inherit;
+      font-size: 0.85rem;
+      padding: 0.45rem 0.65rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface-deep);
+      color: var(--text);
+      outline: none;
+      transition: background 0.25s, border-color 0.25s;
+    }
+    .opt-group select:focus,
+    .opt-group input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    .col-input-row {
+      display: flex;
+      gap: 0.4rem;
+      align-items: center;
+    }
+    .col-input-row select { flex: 1; min-width: 0; }
+    .col-input-row select.col-picker-hidden {
+      display: none;
+    }
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    .checkbox-row input { accent-color: var(--accent); width: 1rem; height: 1rem; }
+    .status-bar {
+      margin-top: 1rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem 1.25rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .status-bar .count { color: var(--positive); font-weight: 600; }
+    .status-bar .detected { color: var(--accent); }
+    .btn {
+      font-family: inherit;
+      font-size: 0.8rem;
+      padding: 0.38rem 0.75rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn:hover { background: var(--surface-hover); }
+    .btn-success {
+      border-color: rgba(62, 207, 142, 0.45);
+      background: rgba(62, 207, 142, 0.12);
+      color: var(--positive);
+    }
+    [data-theme="light"] .btn-success {
+      background: rgba(5, 150, 105, 0.1);
+      border-color: rgba(5, 150, 105, 0.35);
+    }
+    .toast {
+      position: fixed;
+      bottom: 1.5rem;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.6rem 1.1rem;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      box-shadow: 0 8px 32px var(--shadow);
+      opacity: 0;
+      transition: transform 0.25s, opacity 0.25s;
+      z-index: 100;
+      pointer-events: none;
+    }
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+    .preview-tags {
+      padding: 0 1rem 0.75rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      max-height: 72px;
+      overflow-y: auto;
+    }
+    .tag {
+      font-size: 0.72rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 5px;
+      background: var(--surface-deep);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      max-width: 180px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .tool-tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+      padding: 0.35rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      width: fit-content;
+    }
+    .tool-tab {
+      font-family: inherit;
+      font-size: 0.85rem;
+      font-weight: 500;
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 9px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .tool-tab:hover { color: var(--text); background: var(--surface-hover); }
+    .tool-tab.active {
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .tool-panel { display: none; }
+    .tool-panel.active { display: block; }
+    .csv-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .csv-upload {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.65rem;
+      padding: 3rem 1.5rem;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+      border-bottom: 1px solid transparent;
+    }
+    .csv-upload:hover,
+    .csv-upload.dragover {
+      background: var(--upload-hover);
+    }
+    .csv-upload.has-file { padding: 1.5rem; }
+    .csv-upload input { display: none; }
+    .csv-upload-icon {
+      width: 3rem;
+      height: 3rem;
+      border-radius: 12px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .csv-upload-icon svg { width: 1.5rem; height: 1.5rem; }
+    .csv-upload h3 {
+      margin: 0;
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+    .csv-upload p {
+      margin: 0;
+      font-size: 0.82rem;
+      color: var(--muted);
+      text-align: center;
+    }
+    .csv-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem 1.5rem;
+      padding: 1rem 1.25rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .csv-meta strong { color: var(--text); }
+    .csv-meta .hl { color: var(--positive); font-weight: 600; }
+    .csv-preview-wrap {
+      padding: 0 1.25rem 1.25rem;
+      overflow-x: auto;
+    }
+    .csv-preview {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+    .csv-preview th,
+    .csv-preview td {
+      border: 1px solid var(--border);
+      padding: 0.45rem 0.65rem;
+      text-align: left;
+      white-space: nowrap;
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .csv-preview th {
+      background: var(--surface-deep);
+      font-weight: 600;
+      color: var(--text);
+    }
+    .csv-preview td { color: var(--code-text); }
+    .csv-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 1rem 1.25rem;
+      border-top: 1px solid var(--border);
+      background: var(--surface-deep);
+    }
+    .csv-filename-field {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex: 1;
+      min-width: 12rem;
+    }
+    .csv-filename-field label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .csv-filename-field input {
+      flex: 1;
+      min-width: 0;
+      font-family: inherit;
+      font-size: 0.82rem;
+      padding: 0.45rem 0.65rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      outline: none;
+    }
+    .csv-filename-field input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    .csv-options-inline {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem 1rem;
+      flex: 1;
+      min-width: 0;
+    }
+    .csv-options-inline label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--muted);
+    }
+    .csv-options-inline select {
+      font-family: inherit;
+      font-size: 0.82rem;
+      padding: 0.38rem 0.6rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      outline: none;
+    }
+    .btn-download {
+      border-color: rgba(62, 207, 142, 0.45);
+      background: rgba(62, 207, 142, 0.12);
+      color: var(--positive);
+      font-weight: 600;
+      padding: 0.5rem 1.1rem;
+    }
+    [data-theme="light"] .btn-download {
+      background: rgba(5, 150, 105, 0.1);
+      border-color: rgba(5, 150, 105, 0.35);
+    }
+    .btn-download:disabled { opacity: 0.45; cursor: not-allowed; }
+    .csv-empty-hint {
+      padding: 1.25rem;
+      text-align: center;
+      font-size: 0.84rem;
+      color: var(--muted);
+    }
+    .csv-settings-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem 1.25rem;
+      padding: 0.85rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-deep);
+    }
+    .csv-settings-bar label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--muted);
+    }
+    .csv-settings-bar select {
+      font-family: inherit;
+      font-size: 0.82rem;
+      padding: 0.38rem 0.6rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      outline: none;
+      min-width: 11rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="header-row">
+        <div class="header-main">
+          <span class="badge">SQL / Python 辅助</span>
+          <h1>数据格式化工具</h1>
+          <p class="desc" id="headerDesc">粘贴文本、粘贴 Excel 表格或上传文件，自动识别分隔符，输出 <code>('值1','值2',…)</code> 格式</p>
+          <div class="example" id="headerExample">示例：输入 a、b（每行一项）→ 输出 <code>('a','b')</code></div>
+        </div>
+        <button type="button" class="theme-toggle" id="themeToggle" title="切换背景颜色">
+          <svg id="iconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <svg id="iconSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" hidden><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          <span id="themeLabel">浅色</span>
+        </button>
+      </div>
+    </header>
+
+    <nav class="tool-tabs" role="tablist">
+      <button type="button" class="tool-tab active" data-tab="quote" role="tab" aria-selected="true">数据加引号</button>
+      <button type="button" class="tool-tab" data-tab="csv2xlsx" role="tab" aria-selected="false">CSV 转 Excel</button>
+    </nav>
+
+    <div id="panelQuote" class="tool-panel active">
+    <div class="grid">
+      <section class="panel">
+        <div class="panel-head">
+          <h2 class="panel-title">输入数据</h2>
+          <div class="panel-actions">
+            <button type="button" class="btn" id="btnClear">清空</button>
+            <button type="button" class="btn" id="btnPaste">粘贴</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <textarea id="inputArea" placeholder="在此粘贴或输入数据…&#10;&#10;支持：每行一项 · 逗号分隔 · Excel 表格（Tab）· 空格分隔"></textarea>
+          <div class="upload-strip" id="dropZone" role="button" tabindex="0">
+            <input type="file" id="fileInput" accept=".csv,.tsv,.txt,.xlsx,.xls" />
+            <div class="upload-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </div>
+            <div class="upload-text">
+              <strong>点击或拖拽上传表格</strong>
+              <span>CSV · TSV · TXT · Excel（.xlsx / .xls）</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2 class="panel-title">输出结果</h2>
+          <div class="panel-actions">
+            <button type="button" class="btn btn-success" id="btnCopy">复制结果</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="output-box empty" id="output">转换结果将显示在这里…</div>
+          <div class="preview-tags" id="previewTags" hidden></div>
+        </div>
+      </section>
+    </div>
+
+    <div class="options">
+      <div class="opt-group">
+        <label for="delimiter">分隔符</label>
+        <select id="delimiter">
+          <option value="auto">自动识别</option>
+          <option value="newline">换行（每行一项）</option>
+          <option value="comma">逗号（, 或 ，）</option>
+          <option value="tab">制表符（表格列）</option>
+          <option value="semicolon">分号（; 或 ；）</option>
+          <option value="space">空格</option>
+          <option value="pipe">竖线（|）</option>
+        </select>
+      </div>
+      <div class="opt-group">
+        <label>表格提取</label>
+        <div class="col-input-row">
+          <select id="extractMode">
+            <option value="all">全部单元格</option>
+            <option value="col">指定列</option>
+            <option value="first-row">仅第一行</option>
+          </select>
+          <select id="colPicker" title="按列名或列号选择" class="col-picker-hidden">
+            <option value="0">第 1 列</option>
+          </select>
+        </div>
+      </div>
+      <div class="opt-group">
+        <label for="quoteStyle">引号类型</label>
+        <select id="quoteStyle">
+          <option value="single">单引号 '…'</option>
+          <option value="double">双引号 "…"</option>
+        </select>
+      </div>
+      <div class="opt-group">
+        <label for="wrapStyle">输出格式</label>
+        <select id="wrapStyle">
+          <option value="paren">括号元组 ('a','b')</option>
+          <option value="plain">仅加引号 'a','b'</option>
+          <option value="in">IN 子句 IN ('a','b')</option>
+        </select>
+      </div>
+      <div class="opt-group" style="display:flex;align-items:flex-end;">
+        <label class="checkbox-row">
+          <input type="checkbox" id="dedupe" />
+          去重
+        </label>
+      </div>
+      <div class="opt-group" style="display:flex;align-items:flex-end;">
+        <label class="checkbox-row">
+          <input type="checkbox" id="skipHeader" />
+          跳过首行（表头）
+        </label>
+      </div>
+    </div>
+
+    <div class="status-bar">
+      <span>已解析 <span class="count" id="itemCount">0</span> 项</span>
+      <span class="detected" id="detectedMode"></span>
+    </div>
+    </div>
+
+    <div id="panelCsv" class="tool-panel">
+      <div class="csv-card">
+        <div class="csv-settings-bar">
+          <label for="csvEncoding">文件编码</label>
+          <select id="csvEncoding">
+            <option value="utf-8">Unicode (UTF-8)</option>
+            <option value="gb18030">简体中文 (GBK / GB18030)</option>
+            <option value="big5">繁体中文 (Big5)</option>
+            <option value="utf-16le">Unicode (UTF-16 LE)</option>
+            <option value="iso-8859-1">西欧 (Latin-1)</option>
+          </select>
+          <label for="csvDelimiter">分隔符</label>
+          <select id="csvDelimiter">
+            <option value=",">逗号（,）</option>
+            <option value="，">中文逗号（，）</option>
+            <option value="tab">制表符（Tab）</option>
+            <option value=";">分号（;）</option>
+          </select>
+        </div>
+        <div class="csv-upload" id="csvDropZone" role="button" tabindex="0">
+          <input type="file" id="csvFileInput" accept=".csv,.txt" />
+          <div class="csv-upload-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          </div>
+          <h3 id="csvUploadTitle">点击或拖拽上传 CSV 文件</h3>
+          <p>选择编码与分隔符后上传，日期字段将保留为 Excel 日期格式</p>
+        </div>
+
+        <div id="csvResult" hidden>
+          <div class="csv-meta">
+            <span>文件：<strong id="csvFileName">—</strong></span>
+            <span>行数：<span class="hl" id="csvRowCount">0</span></span>
+            <span>列数：<span class="hl" id="csvColCount">0</span></span>
+            <span>编码：<strong id="csvEncodingLabel">UTF-8</strong></span>
+          </div>
+          <div class="csv-preview-wrap">
+            <table class="csv-preview" id="csvPreviewTable"></table>
+          </div>
+          <div class="csv-actions">
+            <div class="csv-filename-field">
+              <label for="csvOutputName">Excel 文件名</label>
+              <input type="text" id="csvOutputName" placeholder="output.xlsx" spellcheck="false" />
+            </div>
+            <button type="button" class="btn btn-download" id="btnDownloadXlsx">下载 Excel</button>
+          </div>
+        </div>
+
+        <div class="csv-empty-hint" id="csvEmptyHint">上传 CSV 后可预览前 5 行，并下载为 Excel 表格</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    const input = $("inputArea");
+    const output = $("output");
+    const previewTags = $("previewTags");
+    const itemCount = $("itemCount");
+    const detectedMode = $("detectedMode");
+    const toast = $("toast");
+    const colPicker = $("colPicker");
+    const extractMode = $("extractMode");
+
+    let toastTimer = null;
+    let selectedCol = 0;
+    let lastHeaderKey = "";
+
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.classList.add("show");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove("show"), 2000);
+    }
+
+    function cleanCell(val) {
+      if (val == null) return "";
+      return String(val)
+        .trim()
+        .replace(/^["'""'']+|["'""'']+$/g, "")
+        .trim();
+    }
+
+    function parseCSVLine(line) {
+      const result = [];
+      let cur = "";
+      let inQuote = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+          if (inQuote && line[i + 1] === '"') {
+            cur += '"';
+            i++;
+          } else {
+            inQuote = !inQuote;
+          }
+        } else if ((ch === "," || ch === "，") && !inQuote) {
+          result.push(cleanCell(cur));
+          cur = "";
+        } else {
+          cur += ch;
+        }
+      }
+      result.push(cleanCell(cur));
+      return result;
+    }
+
+    function splitByDelimiter(text, delimiter) {
+      const patterns = {
+        comma: /[,，]/,
+        tab: /\t/,
+        semicolon: /[;；]/,
+        space: /\s+/,
+        pipe: /\|/,
+        newline: /\r?\n/,
+      };
+      const re = patterns[delimiter];
+      if (!re) return [text.trim()].filter(Boolean);
+      return text.split(re).map(cleanCell).filter(Boolean);
+    }
+
+    function isTableData(text) {
+      return text.includes("\t") || (text.split(/\r?\n/).length > 1 && text.split(/\r?\n/).some((l) => /[,，]/.test(l) && l.split(/[,，]/).length > 2));
+    }
+
+    function detectDelimiter(text) {
+      if (!text.trim()) return { mode: "auto", label: "" };
+      if (text.includes("\t")) return { mode: "tab", label: "识别为：Excel 表格（Tab 分隔）" };
+      const lines = text.split(/\r?\n/).filter((l) => l.trim());
+      if (lines.length === 1) {
+        if (/[,，]/.test(lines[0])) return { mode: "comma", label: "识别为：逗号分隔" };
+        if (/[;；]/.test(lines[0])) return { mode: "semicolon", label: "识别为：分号分隔" };
+        if (/\|/.test(lines[0])) return { mode: "pipe", label: "识别为：竖线分隔" };
+        if (/\s{2,}/.test(lines[0]) || (lines[0].includes(" ") && !/[\u4e00-\u9fff]/.test(lines[0].replace(/\s/g, "")))) {
+          return { mode: "space", label: "识别为：空格分隔" };
+        }
+        return { mode: "newline", label: "识别为：单行文本" };
+      }
+      const commaRows = lines.filter((l) => /[,，]/.test(l)).length;
+      if (commaRows > lines.length * 0.5) return { mode: "comma", label: "识别为：逗号分隔（多行）" };
+      return { mode: "newline", label: "识别为：每行一项" };
+    }
+
+    function splitFirstRow(text, delimiter) {
+      const firstLine = text.split(/\r?\n/).find((l) => l.trim());
+      if (!firstLine) return [];
+      if (delimiter === "comma" && (firstLine.includes('"') || firstLine.includes('"'))) {
+        return parseCSVLine(firstLine);
+      }
+      return splitByDelimiter(firstLine, delimiter === "tab" ? "tab" : delimiter);
+    }
+
+    function getTableDelimiter(text) {
+      if (text.includes("\t")) return "tab";
+      return "comma";
+    }
+
+    function getMaxColumnCount(text, delimiter) {
+      const lines = text.split(/\r?\n/).filter((l) => l.trim()).slice(0, 20);
+      let max = 0;
+      lines.forEach((line) => {
+        const cells = delimiter === "comma" && (line.includes('"') || line.includes('"'))
+          ? parseCSVLine(line)
+          : splitByDelimiter(line, delimiter === "tab" ? "tab" : delimiter);
+        max = Math.max(max, cells.length);
+      });
+      return max;
+    }
+
+    function getColIndex() {
+      return Math.max(0, selectedCol);
+    }
+
+    function getColPickerLabel() {
+      const opt = colPicker.querySelector(`option[value="${selectedCol}"]`);
+      return opt ? opt.textContent : `第 ${selectedCol + 1} 列`;
+    }
+
+    function resolveColDelimiter(text) {
+      if (text.includes("\t")) return "tab";
+      if (isTableData(text)) return "comma";
+      return "line";
+    }
+
+    function updateColPicker(force) {
+      const isCol = extractMode.value === "col";
+      colPicker.classList.toggle("col-picker-hidden", !isCol);
+      if (!isCol) return;
+
+      const text = input.value.trim();
+      const delim = text ? resolveColDelimiter(text) : "line";
+      const headers = text ? splitFirstRow(text, delim) : [];
+      const colCount = text
+        ? Math.max(headers.length, getMaxColumnCount(text, delim), 1)
+        : 10;
+      const headerKey = headers.join("\x00") + "|" + colCount;
+
+      if (!force && headerKey === lastHeaderKey) {
+        colPicker.value = String(selectedCol);
+        return;
+      }
+      lastHeaderKey = headerKey;
+
+      colPicker.innerHTML = Array.from({ length: colCount }, (_, i) => {
+        const name = headers[i] ? cleanCell(headers[i]) : "";
+        const label = name ? `${name}（第 ${i + 1} 列）` : `第 ${i + 1} 列`;
+        return `<option value="${i}">${escapeHtml(label)}</option>`;
+      }).join("");
+
+      if (selectedCol >= colCount) selectedCol = 0;
+      colPicker.value = String(selectedCol);
+    }
+
+    function parseTableRows(text, delimiter, mode, skipHeader) {
+      const lines = text.split(/\r?\n/).filter((l) => l.trim());
+      if (skipHeader && lines.length > 0) lines.shift();
+
+      let rows;
+      if (delimiter === "line") {
+        rows = lines.map((line) => [cleanCell(line)]);
+      } else {
+        const splitRow = (line) => {
+          if (delimiter === "comma" && (line.includes('"') || line.includes('"'))) {
+            return parseCSVLine(line);
+          }
+          return splitByDelimiter(line, delimiter === "tab" ? "tab" : delimiter);
+        };
+        rows = lines.map(splitRow);
+      }
+      const items = [];
+      const colIdx = getColIndex();
+
+      if (mode === "col") {
+        rows.forEach((cells) => {
+          if (cells[colIdx] != null && cells[colIdx] !== "") items.push(cells[colIdx]);
+        });
+        return items;
+      }
+      if (mode === "first-row") {
+        if (rows[0]) items.push(...rows[0].filter(Boolean));
+        return items;
+      }
+      rows.forEach((cells) => items.push(...cells.filter(Boolean)));
+      return items;
+    }
+
+    function parseInput(text) {
+      const userDelimiter = $("delimiter").value;
+      const mode = extractMode.value;
+      const skipHeader = $("skipHeader").checked;
+
+      if (!text.trim()) return { items: [], detected: "" };
+
+      let effectiveDelimiter = userDelimiter;
+      let detected = "";
+
+      if (userDelimiter === "auto") {
+        const d = detectDelimiter(text);
+        effectiveDelimiter = d.mode;
+        detected = d.label;
+      } else {
+        const labels = {
+          newline: "换行分隔",
+          comma: "逗号分隔",
+          tab: "制表符分隔",
+          semicolon: "分号分隔",
+          space: "空格分隔",
+          pipe: "竖线分隔",
+        };
+        detected = "手动指定：" + (labels[userDelimiter] || userDelimiter);
+      }
+
+      if (mode === "col") {
+        detected += detected ? " · " : "";
+        detected += "提取：" + getColPickerLabel();
+      }
+
+      let items;
+      if (mode === "col") {
+        items = parseTableRows(text, resolveColDelimiter(text), mode, skipHeader);
+      } else if (effectiveDelimiter === "newline") {
+        let lines = text.split(/\r?\n/).map(cleanCell).filter(Boolean);
+        if (skipHeader && lines.length > 0) lines.shift();
+        items = lines;
+      } else if (effectiveDelimiter === "tab" || (isTableData(text) && effectiveDelimiter !== "space")) {
+        const delim = effectiveDelimiter === "auto" ? (text.includes("\t") ? "tab" : "comma") : effectiveDelimiter;
+        items = parseTableRows(text, delim, mode, skipHeader);
+      } else if (effectiveDelimiter === "comma" && text.includes("\n")) {
+        items = parseTableRows(text, "comma", mode, skipHeader);
+      } else {
+        items = splitByDelimiter(text.replace(/\r?\n/g, effectiveDelimiter === "space" ? " " : ","), effectiveDelimiter);
+      }
+
+      items = items.map(cleanCell).filter(Boolean);
+
+      if ($("dedupe").checked) {
+        items = [...new Set(items)];
+      }
+
+      return { items, detected };
+    }
+
+    function formatOutput(items) {
+      if (!items.length) return "";
+      const quote = $("quoteStyle").value === "double" ? '"' : "'";
+      const quoted = items.map((item) => {
+        const escaped = item.replace(new RegExp(quote, "g"), "\\" + quote);
+        return quote + escaped + quote;
+      });
+
+      const wrap = $("wrapStyle").value;
+      const inner = quoted.join(",");
+      if (wrap === "paren") return "(" + inner + ")";
+      if (wrap === "in") return "IN (" + inner + ")";
+      return inner;
+    }
+
+    function renderPreview(items) {
+      if (!items.length) {
+        previewTags.hidden = true;
+        return;
+      }
+      previewTags.hidden = false;
+      const show = items.slice(0, 20);
+      previewTags.innerHTML = show.map((t) => `<span class="tag" title="${escapeHtml(t)}">${escapeHtml(t)}</span>`).join("")
+        + (items.length > 20 ? `<span class="tag">+${items.length - 20} 项…</span>` : "");
+    }
+
+    function escapeHtml(s) {
+      return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    function convert() {
+      updateColPicker(false);
+      const { items, detected } = parseInput(input.value);
+      const result = formatOutput(items);
+
+      itemCount.textContent = items.length;
+      detectedMode.textContent = detected;
+
+      if (result) {
+        output.textContent = result;
+        output.classList.remove("empty");
+      } else {
+        output.textContent = "转换结果将显示在这里…";
+        output.classList.add("empty");
+      }
+      renderPreview(items);
+    }
+
+    function setInputAndConvert(text) {
+      input.value = text;
+      lastHeaderKey = "";
+      updateColPicker(true);
+      convert();
+    }
+
+    // Theme
+    const html = document.documentElement;
+    const iconMoon = $("iconMoon");
+    const iconSun = $("iconSun");
+    const themeLabel = $("themeLabel");
+
+    function applyTheme(theme) {
+      html.setAttribute("data-theme", theme);
+      const isDark = theme === "dark";
+      iconMoon.hidden = !isDark;
+      iconSun.hidden = isDark;
+      themeLabel.textContent = isDark ? "浅色" : "深色";
+      localStorage.setItem("dqf-theme", theme);
+    }
+
+    $("themeToggle").addEventListener("click", () => {
+      const next = html.getAttribute("data-theme") === "dark" ? "light" : "dark";
+      applyTheme(next);
+    });
+
+    applyTheme(localStorage.getItem("dqf-theme") || "dark");
+
+    // Live convert
+    input.addEventListener("input", convert);
+    ["delimiter", "quoteStyle", "wrapStyle", "dedupe", "skipHeader"].forEach((id) => {
+      $(id).addEventListener("change", convert);
+    });
+    extractMode.addEventListener("change", () => {
+      updateColPicker(true);
+      convert();
+    });
+    colPicker.addEventListener("change", () => {
+      selectedCol = Math.max(0, parseInt(colPicker.value, 10) || 0);
+      convert();
+    });
+
+    input.addEventListener("paste", (e) => {
+      const cd = e.clipboardData;
+      if (!cd) return;
+      const htmlData = cd.getData("text/html");
+      const plain = cd.getData("text/plain");
+      if (plain.includes("\t") || (htmlData && htmlData.includes("<table"))) {
+        e.preventDefault();
+        setInputAndConvert(plain);
+        showToast("已粘贴表格数据");
+      }
+    });
+
+    $("btnClear").addEventListener("click", () => {
+      input.value = "";
+      lastHeaderKey = "";
+      selectedCol = 0;
+      updateColPicker(true);
+      convert();
+    });
+
+    $("btnPaste").addEventListener("click", async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        setInputAndConvert(text);
+        showToast("已粘贴");
+      } catch {
+        showToast("无法读取剪贴板，请手动 Ctrl+V");
+      }
+    });
+
+    $("btnCopy").addEventListener("click", async () => {
+      const text = output.textContent;
+      if (!text || output.classList.contains("empty")) {
+        showToast("没有可复制的内容");
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast("已复制到剪贴板");
+      } catch {
+        showToast("复制失败，请手动选择复制");
+      }
+    });
+
+    const dropZone = $("dropZone");
+    const fileInput = $("fileInput");
+
+    dropZone.addEventListener("click", () => fileInput.click());
+    dropZone.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        fileInput.click();
+      }
+    });
+
+    dropZone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropZone.classList.add("dragover");
+    });
+    dropZone.addEventListener("dragleave", (e) => {
+      if (!dropZone.contains(e.relatedTarget)) dropZone.classList.remove("dragover");
+    });
+    dropZone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropZone.classList.remove("dragover");
+      const file = e.dataTransfer.files[0];
+      if (file) handleFile(file);
+    });
+    fileInput.addEventListener("change", () => {
+      if (fileInput.files[0]) handleFile(fileInput.files[0]);
+      fileInput.value = "";
+    });
+
+    function handleFile(file) {
+      const ext = file.name.split(".").pop().toLowerCase();
+      if (["xlsx", "xls"].includes(ext)) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const wb = XLSX.read(e.target.result, { type: "array" });
+            const sheet = wb.Sheets[wb.SheetNames[0]];
+            const csv = XLSX.utils.sheet_to_csv(sheet, { FS: "\t" });
+            setInputAndConvert(csv);
+            $("delimiter").value = "auto";
+            showToast(`已加载 ${file.name}`);
+          } catch {
+            showToast("Excel 文件解析失败");
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          setInputAndConvert(e.target.result);
+          if (ext === "tsv") $("delimiter").value = "tab";
+          showToast(`已加载 ${file.name}`);
+        };
+        reader.readAsText(file, "UTF-8");
+      }
+    }
+
+    convert();
+
+    // ── Tab 切换 ──
+    const TAB_META = {
+      quote: {
+        desc: "粘贴文本、粘贴 Excel 表格或上传文件，自动识别分隔符，输出 <code>('值1','值2',…)</code> 格式",
+        example: "示例：输入 a、b（每行一项）→ 输出 <code>('a','b')</code>",
+      },
+      csv2xlsx: {
+        desc: "上传 CSV 文件，支持多种编码与分隔符，日期字段正确转为 Excel 日期格式并下载",
+        example: "示例：data.csv → 下载 data.xlsx",
+      },
+    };
+
+    document.querySelectorAll(".tool-tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        const name = tab.dataset.tab;
+        document.querySelectorAll(".tool-tab").forEach((t) => {
+          const on = t.dataset.tab === name;
+          t.classList.toggle("active", on);
+          t.setAttribute("aria-selected", on ? "true" : "false");
+        });
+        $("panelQuote").classList.toggle("active", name === "quote");
+        $("panelCsv").classList.toggle("active", name === "csv2xlsx");
+        const meta = TAB_META[name];
+        $("headerDesc").innerHTML = meta.desc;
+        $("headerExample").innerHTML = meta.example;
+      });
+    });
+
+    // ── CSV 转 Excel ──
+    let csvWorkbook = null;
+    let csvRawBuffer = null;
+
+    const csvDropZone = $("csvDropZone");
+    const csvFileInput = $("csvFileInput");
+    const csvResult = $("csvResult");
+    const csvEmptyHint = $("csvEmptyHint");
+    const btnDownloadXlsx = $("btnDownloadXlsx");
+
+    const CSV_ENCODING_LABELS = {
+      "utf-8": "UTF-8",
+      gb18030: "GBK / GB18030",
+      big5: "Big5",
+      "utf-16le": "UTF-16 LE",
+      "iso-8859-1": "Latin-1",
+    };
+
+    function stripBom(text) {
+      return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+    }
+
+    function getCsvDelimiter() {
+      const val = $("csvDelimiter").value;
+      return val === "tab" ? "\t" : val;
+    }
+
+    function getCsvEncodingLabel() {
+      return CSV_ENCODING_LABELS[$("csvEncoding").value] || $("csvEncoding").value;
+    }
+
+    function sanitizeOutputFileName(name) {
+      let n = String(name || "").trim() || "converted";
+      n = n.replace(/[\\/:*?"<>|]/g, "_");
+      if (!/\.xlsx$/i.test(n)) n += ".xlsx";
+      return n;
+    }
+
+    function getOutputFileName() {
+      return sanitizeOutputFileName($("csvOutputName").value);
+    }
+
+    function setDefaultOutputName(csvFileName) {
+      $("csvOutputName").value = csvFileName.replace(/\.(csv|txt)$/i, "") + ".xlsx";
+    }
+
+    function decodeBuffer(buffer, encoding) {
+      const u8 = new Uint8Array(buffer);
+      if (encoding === "utf-8" && u8.length >= 3 && u8[0] === 0xef && u8[1] === 0xbb && u8[2] === 0xbf) {
+        return new TextDecoder("utf-8").decode(buffer.slice(3));
+      }
+      if (u8.length >= 2 && u8[0] === 0xff && u8[1] === 0xfe) {
+        return new TextDecoder("utf-16le").decode(buffer.slice(2));
+      }
+      if (u8.length >= 2 && u8[0] === 0xfe && u8[1] === 0xff) {
+        return new TextDecoder("utf-16be").decode(buffer.slice(2));
+      }
+      return new TextDecoder(encoding, { fatal: false }).decode(buffer);
+    }
+
+    function hasTime(d) {
+      return d.getHours() !== 0 || d.getMinutes() !== 0 || d.getSeconds() !== 0;
+    }
+
+    function pad2(n) {
+      return String(n).padStart(2, "0");
+    }
+
+    function formatDateDisplay(d) {
+      const date = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+      if (!hasTime(d)) return date;
+      return `${date} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+    }
+
+    function isValidDateParts(d, y, m, day) {
+      return !isNaN(d.getTime()) && d.getFullYear() === y && d.getMonth() === m - 1 && d.getDate() === day;
+    }
+
+    function tryParseDateString(s) {
+      if (s == null || s === "") return null;
+      const str = String(s).trim();
+      if (str.length > 32) return null;
+
+      let m = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+      if (m) {
+        const d = new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
+        return isValidDateParts(d, +m[1], +m[2], +m[3]) ? d : null;
+      }
+
+      m = str.match(/^(\d{4})(\d{2})(\d{2})$/);
+      if (m) {
+        const d = new Date(+m[1], +m[2] - 1, +m[3]);
+        return isValidDateParts(d, +m[1], +m[2], +m[3]) ? d : null;
+      }
+
+      m = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+      if (m) {
+        const d = new Date(+m[3], +m[1] - 1, +m[2], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
+        return isValidDateParts(d, +m[3], +m[1], +m[2]) ? d : null;
+      }
+
+      return null;
+    }
+
+    function excelSerialToDate(serial) {
+      if (!Number.isFinite(serial) || serial < 1 || serial > 2958465) return null;
+      const d = new Date(Math.round((serial - 25569) * 86400 * 1000));
+      if (isNaN(d.getTime()) || d.getFullYear() < 1900 || d.getFullYear() > 2100) return null;
+      return d;
+    }
+
+    function setDateCell(cell, d) {
+      cell.t = "d";
+      cell.v = d;
+      cell.z = hasTime(d) ? "yyyy-mm-dd hh:mm:ss" : "yyyy-mm-dd";
+      delete cell.w;
+    }
+
+    function fixWorksheetDates(sheet) {
+      if (!sheet || !sheet["!ref"]) return;
+      const range = XLSX.utils.decode_range(sheet["!ref"]);
+      for (let R = range.s.r; R <= range.e.r; R++) {
+        for (let C = range.s.c; C <= range.e.c; C++) {
+          const addr = XLSX.utils.encode_cell({ r: R, c: C });
+          const cell = sheet[addr];
+          if (!cell) continue;
+
+          if (cell.t === "d" && cell.v instanceof Date) {
+            if (!cell.z) cell.z = hasTime(cell.v) ? "yyyy-mm-dd hh:mm:ss" : "yyyy-mm-dd";
+            continue;
+          }
+
+          if (cell.t === "n") {
+            if (Number.isInteger(cell.v) && cell.v >= 19000101 && cell.v <= 21001231) {
+              const s = String(cell.v);
+              const d = new Date(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8));
+              if (isValidDateParts(d, +s.slice(0, 4), +s.slice(4, 6), +s.slice(6, 8))) {
+                setDateCell(cell, d);
+                continue;
+              }
+            }
+            if (cell.v > 1000 && cell.v < 1000000) {
+              const d = excelSerialToDate(cell.v);
+              if (d) {
+                setDateCell(cell, d);
+                continue;
+              }
+            }
+          }
+
+          const str = cell.t === "s" || cell.t === "str" ? String(cell.v) : String(cell.v ?? "");
+          const d = tryParseDateString(str);
+          if (d) setDateCell(cell, d);
+        }
+      }
+    }
+
+    function parseCsvToWorkbook(text, delimiter) {
+      const wb = XLSX.read(text, { type: "string", FS: delimiter, raw: true });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      fixWorksheetDates(sheet);
+      return wb;
+    }
+
+    function getSheetStats(wb) {
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const range = XLSX.utils.decode_range(sheet["!ref"] || "A1");
+      return {
+        rows: range.e.r - range.s.r + 1,
+        cols: range.e.c - range.s.c + 1,
+        sheet,
+      };
+    }
+
+    function getCellDisplay(sheet, r, c) {
+      const cell = sheet[XLSX.utils.encode_cell({ r, c })];
+      if (!cell) return "";
+      if (cell.t === "d" && cell.v instanceof Date) return formatDateDisplay(cell.v);
+      if (cell.w != null) return String(cell.w);
+      return String(cell.v ?? "");
+    }
+
+    function renderCsvPreview(wb) {
+      const { rows, cols, sheet } = getSheetStats(wb);
+      $("csvRowCount").textContent = rows;
+      $("csvColCount").textContent = cols;
+      $("csvEncodingLabel").textContent = getCsvEncodingLabel();
+
+      const previewRows = Math.min(rows, 5);
+      let html = "<thead><tr>";
+      for (let c = 0; c < cols; c++) {
+        const val = getCellDisplay(sheet, 0, c) || `列${c + 1}`;
+        html += `<th title="${escapeHtml(val)}">${escapeHtml(val)}</th>`;
+      }
+      html += "</tr></thead><tbody>";
+      for (let r = 1; r < previewRows; r++) {
+        html += "<tr>";
+        for (let c = 0; c < cols; c++) {
+          const val = getCellDisplay(sheet, r, c);
+          html += `<td title="${escapeHtml(val)}">${escapeHtml(val)}</td>`;
+        }
+        html += "</tr>";
+      }
+      html += "</tbody>";
+      $("csvPreviewTable").innerHTML = html;
+    }
+
+    function applyCsvParse() {
+      if (!csvRawBuffer) return;
+      try {
+        const text = stripBom(decodeBuffer(csvRawBuffer, $("csvEncoding").value));
+        csvWorkbook = parseCsvToWorkbook(text, getCsvDelimiter());
+        renderCsvPreview(csvWorkbook);
+        btnDownloadXlsx.disabled = false;
+      } catch {
+        csvWorkbook = null;
+        btnDownloadXlsx.disabled = true;
+        showToast("解析失败，请检查编码或分隔符设置");
+      }
+    }
+
+    function processCsvFile(file) {
+      if (!file) return;
+      const ext = file.name.split(".").pop().toLowerCase();
+      if (!["csv", "txt"].includes(ext)) {
+        showToast("请上传 .csv 或 .txt 文件");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          csvRawBuffer = e.target.result;
+          setDefaultOutputName(file.name);
+          applyCsvParse();
+
+          $("csvFileName").textContent = file.name;
+          $("csvUploadTitle").textContent = file.name;
+          csvDropZone.classList.add("has-file");
+          csvResult.hidden = false;
+          csvEmptyHint.hidden = true;
+
+          showToast("CSV 已解析，可下载 Excel");
+        } catch {
+          csvWorkbook = null;
+          csvRawBuffer = null;
+          btnDownloadXlsx.disabled = true;
+          showToast("CSV 解析失败，请检查文件格式或编码");
+        }
+      };
+      reader.onerror = () => showToast("文件读取失败");
+      reader.readAsArrayBuffer(file);
+    }
+
+    function reparsedCsv() {
+      if (!csvRawBuffer) return;
+      applyCsvParse();
+      showToast("已重新解析");
+    }
+
+    csvDropZone.addEventListener("click", () => csvFileInput.click());
+    csvDropZone.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        csvFileInput.click();
+      }
+    });
+    csvFileInput.addEventListener("change", () => {
+      if (csvFileInput.files[0]) processCsvFile(csvFileInput.files[0]);
+      csvFileInput.value = "";
+    });
+    csvDropZone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      csvDropZone.classList.add("dragover");
+    });
+    csvDropZone.addEventListener("dragleave", (e) => {
+      if (!csvDropZone.contains(e.relatedTarget)) csvDropZone.classList.remove("dragover");
+    });
+    csvDropZone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      csvDropZone.classList.remove("dragover");
+      const file = e.dataTransfer.files[0];
+      if (file) processCsvFile(file);
+    });
+
+    $("csvDelimiter").addEventListener("change", reparsedCsv);
+    $("csvEncoding").addEventListener("change", reparsedCsv);
+
+    btnDownloadXlsx.addEventListener("click", () => {
+      if (!csvWorkbook) {
+        showToast("请先上传 CSV 文件");
+        return;
+      }
+      try {
+        const outName = getOutputFileName();
+        XLSX.writeFile(csvWorkbook, outName, { cellDates: true });
+        showToast(`已开始下载 ${outName}`);
+      } catch {
+        showToast("下载失败，请重试");
+      }
+    });
+
+    btnDownloadXlsx.disabled = true;
+  </script>
+</body>
+</html>
