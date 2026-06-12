@@ -707,7 +707,7 @@
       </div>
       <div class="opt-group" style="display:flex;align-items:flex-end;">
         <label class="checkbox-row">
-          <input type="checkbox" id="skipHeader" checked="checked" autocomplete="off" />
+          <input type="checkbox" id="skipHeader" autocomplete="off" />
           跳过首行（表头）
         </label>
       </div>
@@ -1103,8 +1103,8 @@
     function applyDefaultOptions() {
       $("dedupe").defaultChecked = true;
       $("dedupe").checked = true;
-      $("skipHeader").defaultChecked = true;
-      $("skipHeader").checked = true;
+      $("skipHeader").defaultChecked = false;
+      $("skipHeader").checked = false;
     }
     applyDefaultOptions();
 
