@@ -686,18 +686,24 @@
         </div>
       </div>
       <div class="opt-group">
-        <label for="quoteStyle">包裹符号</label>
+        <label for="quoteStyle">引号类型</label>
         <select id="quoteStyle">
           <option value="single">单引号 '…'</option>
           <option value="double">双引号 "…"</option>
-          <option value="pipe">竖线 |…|</option>
+        </select>
+      </div>
+      <div class="opt-group">
+        <label for="joinStyle">项间连接</label>
+        <select id="joinStyle">
+          <option value="comma">逗号 'a','b'</option>
+          <option value="pipe">竖线 'a|b'</option>
         </select>
       </div>
       <div class="opt-group">
         <label for="wrapStyle">输出格式</label>
         <select id="wrapStyle">
           <option value="paren">括号元组 ('a','b')</option>
-          <option value="plain">仅加包裹 'a','b'</option>
+          <option value="plain">仅加引号</option>
           <option value="in">IN 子句 IN ('a','b')</option>
         </select>
       </div>
@@ -1032,26 +1038,30 @@
       return { items, detected };
     }
 
-    function getWrapChar() {
-      const style = $("quoteStyle").value;
-      if (style === "double") return '"';
-      if (style === "pipe") return "|";
-      return "'";
+    function getQuoteChar() {
+      return $("quoteStyle").value === "double" ? '"' : "'";
     }
 
-    function wrapItem(item, wrapChar) {
-      if (wrapChar === "|") return "|" + item + "|";
-      const escaped = item.replace(new RegExp(wrapChar, "g"), "\\" + wrapChar);
-      return wrapChar + escaped + wrapChar;
+    function wrapItem(item, quoteChar) {
+      const escaped = item.replace(new RegExp(quoteChar, "g"), "\\" + quoteChar);
+      return quoteChar + escaped + quoteChar;
     }
 
     function formatOutput(items) {
       if (!items.length) return "";
-      const wrapChar = getWrapChar();
-      const wrapped = items.map((item) => wrapItem(item, wrapChar));
-
+      const quoteChar = getQuoteChar();
+      const joinStyle = $("joinStyle").value;
       const wrap = $("wrapStyle").value;
-      const inner = wrapped.join(",");
+
+      let inner;
+      if (joinStyle === "pipe") {
+        const joined = items.join("|");
+        const escaped = joined.replace(new RegExp(quoteChar, "g"), "\\" + quoteChar);
+        inner = quoteChar + escaped + quoteChar;
+      } else {
+        inner = items.map((item) => wrapItem(item, quoteChar)).join(",");
+      }
+
       if (wrap === "paren") return "(" + inner + ")";
       if (wrap === "in") return "IN (" + inner + ")";
       return inner;
@@ -1129,7 +1139,7 @@
 
     // Live convert
     input.addEventListener("input", convert);
-    ["delimiter", "quoteStyle", "wrapStyle", "dedupe", "skipHeader"].forEach((id) => {
+    ["delimiter", "quoteStyle", "joinStyle", "wrapStyle", "dedupe", "skipHeader"].forEach((id) => {
       $(id).addEventListener("change", convert);
     });
     extractMode.addEventListener("change", () => {
@@ -1247,8 +1257,8 @@
     // ── Tab 切换 ──
     const TAB_META = {
       quote: {
-        desc: "粘贴文本、表格或上传文件，自动识别分隔符，输出加引号或竖线包裹的格式",
-        example: "示例：输入 a、b → 输出 <code>('a','b')</code> 或 <code>(|a|,|b|)</code>",
+        desc: "粘贴文本、表格或上传文件，自动识别分隔符，输出加引号格式",
+        example: "示例：输入 适宠、宠物 → 输出 <code>'适宠|宠物'</code>（项间连接选竖线）",
       },
       csv2xlsx: {
         desc: "上传 CSV 文件，支持多种编码与分隔符，日期字段正确转为 Excel 日期格式并下载",
