@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>数据格式化工具</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -695,17 +698,21 @@
       <div class="opt-group">
         <label for="joinStyle">项间连接</label>
         <select id="joinStyle">
-          <option value="comma">逗号 'a','b'</option>
           <option value="pipe">竖线 'a|b'</option>
+          <option value="comma">逗号 'a','b'</option>
         </select>
       </div>
-      <div class="opt-group">
-        <label for="wrapStyle">输出格式</label>
-        <select id="wrapStyle">
-          <option value="paren">括号元组 ('a','b')</option>
-          <option value="plain">仅加引号</option>
-          <option value="in">IN 子句 IN ('a','b')</option>
-        </select>
+      <div class="opt-group" style="display:flex;align-items:flex-end;">
+        <label class="checkbox-row">
+          <input type="checkbox" id="useParen" checked="checked" autocomplete="off" />
+          带括号 ('…')
+        </label>
+      </div>
+      <div class="opt-group" style="display:flex;align-items:flex-end;">
+        <label class="checkbox-row">
+          <input type="checkbox" id="useIn" autocomplete="off" />
+          IN 子句 IN (…)
+        </label>
       </div>
       <div class="opt-group" style="display:flex;align-items:flex-end;">
         <label class="checkbox-row">
@@ -1051,7 +1058,6 @@
       if (!items.length) return "";
       const quoteChar = getQuoteChar();
       const joinStyle = $("joinStyle").value;
-      const wrap = $("wrapStyle").value;
 
       let inner;
       if (joinStyle === "pipe") {
@@ -1062,8 +1068,8 @@
         inner = items.map((item) => wrapItem(item, quoteChar)).join(",");
       }
 
-      if (wrap === "paren") return "(" + inner + ")";
-      if (wrap === "in") return "IN (" + inner + ")";
+      if ($("useIn").checked) return "IN (" + inner + ")";
+      if ($("useParen").checked) return "(" + inner + ")";
       return inner;
     }
 
@@ -1134,12 +1140,17 @@
       $("dedupe").checked = true;
       $("skipHeader").defaultChecked = false;
       $("skipHeader").checked = false;
+      $("joinStyle").value = "pipe";
+      $("useParen").defaultChecked = true;
+      $("useParen").checked = true;
+      $("useIn").defaultChecked = false;
+      $("useIn").checked = false;
     }
     applyDefaultOptions();
 
     // Live convert
     input.addEventListener("input", convert);
-    ["delimiter", "quoteStyle", "joinStyle", "wrapStyle", "dedupe", "skipHeader"].forEach((id) => {
+    ["delimiter", "quoteStyle", "joinStyle", "useParen", "useIn", "dedupe", "skipHeader"].forEach((id) => {
       $(id).addEventListener("change", convert);
     });
     extractMode.addEventListener("change", () => {
@@ -1258,7 +1269,7 @@
     const TAB_META = {
       quote: {
         desc: "粘贴文本、表格或上传文件，自动识别分隔符，输出加引号格式",
-        example: "示例：输入 适宠、宠物 → 输出 <code>'适宠|宠物'</code>（项间连接选竖线）",
+        example: "示例：输入 适宠家居、老年宠物 → 输出 <code>('适宠家居|老年宠物')</code>（默认带括号）",
       },
       csv2xlsx: {
         desc: "上传 CSV 文件，支持多种编码与分隔符，日期字段正确转为 Excel 日期格式并下载",
