@@ -615,7 +615,7 @@
     </header>
 
     <nav class="tool-tabs" role="tablist">
-      <button type="button" class="tool-tab active" data-tab="quote" role="tab" aria-selected="true">数据加引号</button>
+      <button type="button" class="tool-tab active" data-tab="quote" role="tab" aria-selected="true">数据格式修改</button>
       <button type="button" class="tool-tab" data-tab="csv2xlsx" role="tab" aria-selected="false">CSV 转 Excel</button>
     </nav>
 
@@ -630,7 +630,7 @@
           </div>
         </div>
         <div class="panel-body">
-          <textarea id="inputArea" placeholder="在此粘贴或输入数据…&#10;&#10;支持：每行一项 · 逗号分隔 · Excel 表格（Tab）· 空格分隔"></textarea>
+          <textarea id="inputArea" placeholder="在此粘贴或输入数据…&#10;&#10;支持：每行一项 · 逗号 / 顿号（、）分隔 · Excel 表格（Tab）· 空格分隔"></textarea>
           <div class="upload-strip" id="dropZone" role="button" tabindex="0">
             <input type="file" id="fileInput" accept=".csv,.tsv,.txt,.xlsx,.xls" />
             <div class="upload-icon">
@@ -665,6 +665,7 @@
           <option value="auto">自动识别</option>
           <option value="newline">换行（每行一项）</option>
           <option value="comma">逗号（, 或 ，）</option>
+          <option value="dunhao">顿号（、）</option>
           <option value="tab">制表符（表格列）</option>
           <option value="semicolon">分号（; 或 ；）</option>
           <option value="space">空格</option>
@@ -685,17 +686,18 @@
         </div>
       </div>
       <div class="opt-group">
-        <label for="quoteStyle">引号类型</label>
+        <label for="quoteStyle">包裹符号</label>
         <select id="quoteStyle">
           <option value="single">单引号 '…'</option>
           <option value="double">双引号 "…"</option>
+          <option value="pipe">竖线 |…|</option>
         </select>
       </div>
       <div class="opt-group">
         <label for="wrapStyle">输出格式</label>
         <select id="wrapStyle">
           <option value="paren">括号元组 ('a','b')</option>
-          <option value="plain">仅加引号 'a','b'</option>
+          <option value="plain">仅加包裹 'a','b'</option>
           <option value="in">IN 子句 IN ('a','b')</option>
         </select>
       </div>
@@ -831,6 +833,7 @@
     function splitByDelimiter(text, delimiter) {
       const patterns = {
         comma: /[,，]/,
+        dunhao: /、/,
         tab: /\t/,
         semicolon: /[;；]/,
         space: /\s+/,
@@ -843,7 +846,7 @@
     }
 
     function isTableData(text) {
-      return text.includes("\t") || (text.split(/\r?\n/).length > 1 && text.split(/\r?\n/).some((l) => /[,，]/.test(l) && l.split(/[,，]/).length > 2));
+      return text.includes("\t") || (text.split(/\r?\n/).length > 1 && text.split(/\r?\n/).some((l) => (/[,，]/.test(l) && l.split(/[,，]/).length > 2) || (/、/.test(l) && l.split(/、/).length > 2)));
     }
 
     function detectDelimiter(text) {
@@ -852,6 +855,7 @@
       const lines = text.split(/\r?\n/).filter((l) => l.trim());
       if (lines.length === 1) {
         if (/[,，]/.test(lines[0])) return { mode: "comma", label: "识别为：逗号分隔" };
+        if (/、/.test(lines[0])) return { mode: "dunhao", label: "识别为：顿号分隔" };
         if (/[;；]/.test(lines[0])) return { mode: "semicolon", label: "识别为：分号分隔" };
         if (/\|/.test(lines[0])) return { mode: "pipe", label: "识别为：竖线分隔" };
         if (/\s{2,}/.test(lines[0]) || (lines[0].includes(" ") && !/[\u4e00-\u9fff]/.test(lines[0].replace(/\s/g, "")))) {
@@ -860,7 +864,9 @@
         return { mode: "newline", label: "识别为：单行文本" };
       }
       const commaRows = lines.filter((l) => /[,，]/.test(l)).length;
+      const dunhaoRows = lines.filter((l) => /、/.test(l)).length;
       if (commaRows > lines.length * 0.5) return { mode: "comma", label: "识别为：逗号分隔（多行）" };
+      if (dunhaoRows > lines.length * 0.5) return { mode: "dunhao", label: "识别为：顿号分隔（多行）" };
       return { mode: "newline", label: "识别为：每行一项" };
     }
 
@@ -875,6 +881,8 @@
 
     function getTableDelimiter(text) {
       if (text.includes("\t")) return "tab";
+      const firstLine = text.split(/\r?\n/).find((l) => l.trim()) || "";
+      if (/、/.test(firstLine) && firstLine.split(/、/).length > 1) return "dunhao";
       return "comma";
     }
 
@@ -901,7 +909,7 @@
 
     function resolveColDelimiter(text) {
       if (text.includes("\t")) return "tab";
-      if (isTableData(text)) return "comma";
+      if (isTableData(text)) return getTableDelimiter(text);
       return "line";
     }
 
@@ -985,6 +993,7 @@
         const labels = {
           newline: "换行分隔",
           comma: "逗号分隔",
+          dunhao: "顿号分隔",
           tab: "制表符分隔",
           semicolon: "分号分隔",
           space: "空格分隔",
@@ -1006,10 +1015,10 @@
         if (skipHeader && lines.length > 0) lines.shift();
         items = lines;
       } else if (effectiveDelimiter === "tab" || (isTableData(text) && effectiveDelimiter !== "space")) {
-        const delim = effectiveDelimiter === "auto" ? (text.includes("\t") ? "tab" : "comma") : effectiveDelimiter;
+        const delim = effectiveDelimiter === "auto" ? getTableDelimiter(text) : effectiveDelimiter;
         items = parseTableRows(text, delim, mode, skipHeader);
-      } else if (effectiveDelimiter === "comma" && text.includes("\n")) {
-        items = parseTableRows(text, "comma", mode, skipHeader);
+      } else if ((effectiveDelimiter === "comma" || effectiveDelimiter === "dunhao") && text.includes("\n")) {
+        items = parseTableRows(text, effectiveDelimiter, mode, skipHeader);
       } else {
         items = splitByDelimiter(text.replace(/\r?\n/g, effectiveDelimiter === "space" ? " " : ","), effectiveDelimiter);
       }
@@ -1023,16 +1032,26 @@
       return { items, detected };
     }
 
+    function getWrapChar() {
+      const style = $("quoteStyle").value;
+      if (style === "double") return '"';
+      if (style === "pipe") return "|";
+      return "'";
+    }
+
+    function wrapItem(item, wrapChar) {
+      if (wrapChar === "|") return "|" + item + "|";
+      const escaped = item.replace(new RegExp(wrapChar, "g"), "\\" + wrapChar);
+      return wrapChar + escaped + wrapChar;
+    }
+
     function formatOutput(items) {
       if (!items.length) return "";
-      const quote = $("quoteStyle").value === "double" ? '"' : "'";
-      const quoted = items.map((item) => {
-        const escaped = item.replace(new RegExp(quote, "g"), "\\" + quote);
-        return quote + escaped + quote;
-      });
+      const wrapChar = getWrapChar();
+      const wrapped = items.map((item) => wrapItem(item, wrapChar));
 
       const wrap = $("wrapStyle").value;
-      const inner = quoted.join(",");
+      const inner = wrapped.join(",");
       if (wrap === "paren") return "(" + inner + ")";
       if (wrap === "in") return "IN (" + inner + ")";
       return inner;
@@ -1228,8 +1247,8 @@
     // ── Tab 切换 ──
     const TAB_META = {
       quote: {
-        desc: "粘贴文本、粘贴 Excel 表格或上传文件，自动识别分隔符，输出 <code>('值1','值2',…)</code> 格式",
-        example: "示例：输入 a、b（每行一项）→ 输出 <code>('a','b')</code>",
+        desc: "粘贴文本、表格或上传文件，自动识别分隔符，输出加引号或竖线包裹的格式",
+        example: "示例：输入 a、b → 输出 <code>('a','b')</code> 或 <code>(|a|,|b|)</code>",
       },
       csv2xlsx: {
         desc: "上传 CSV 文件，支持多种编码与分隔符，日期字段正确转为 Excel 日期格式并下载",
