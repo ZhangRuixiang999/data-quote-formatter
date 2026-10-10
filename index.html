@@ -693,6 +693,7 @@
         <select id="quoteStyle">
           <option value="single">单引号 '…'</option>
           <option value="double">双引号 "…"</option>
+          <option value="none">不加引号</option>
         </select>
       </div>
       <div class="opt-group">
@@ -1046,10 +1047,14 @@
     }
 
     function getQuoteChar() {
-      return $("quoteStyle").value === "double" ? '"' : "'";
+      const v = $("quoteStyle").value;
+      if (v === "double") return '"';
+      if (v === "none") return "";
+      return "'";
     }
 
     function wrapItem(item, quoteChar) {
+      if (!quoteChar) return item;
       const escaped = item.replace(new RegExp(quoteChar, "g"), "\\" + quoteChar);
       return quoteChar + escaped + quoteChar;
     }
@@ -1062,8 +1067,12 @@
       let inner;
       if (joinStyle === "pipe") {
         const joined = items.join("|");
-        const escaped = joined.replace(new RegExp(quoteChar, "g"), "\\" + quoteChar);
-        inner = quoteChar + escaped + quoteChar;
+        if (!quoteChar) {
+          inner = joined;
+        } else {
+          const escaped = joined.replace(new RegExp(quoteChar, "g"), "\\" + quoteChar);
+          inner = quoteChar + escaped + quoteChar;
+        }
       } else {
         inner = items.map((item) => wrapItem(item, quoteChar)).join(",");
       }
