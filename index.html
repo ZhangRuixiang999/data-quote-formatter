@@ -1362,62 +1362,70 @@
       return new TextDecoder(encoding, { fatal: false }).decode(buffer);
     }
 
-    function hasTime(d) {
-      return d.getHours() !== 0 || d.getMinutes() !== 0 || d.getSeconds() !== 0;
-    }
-
     function pad2(n) {
       return String(n).padStart(2, "0");
     }
 
-    function formatDateDisplay(d) {
-      const date = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-      if (!hasTime(d)) return date;
-      return `${date} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+    function isValidYmd(y, m, d) {
+      if (y < 1900 || y > 2200 || m < 1 || m > 12 || d < 1 || d > 31) return false;
+      const dt = new Date(Date.UTC(y, m - 1, d));
+      return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
     }
 
-    function isValidDateParts(d, y, m, day) {
-      return !isNaN(d.getTime()) && d.getFullYear() === y && d.getMonth() === m - 1 && d.getDate() === day;
-    }
-
-    function tryParseDateString(s) {
+    /** 解析为无时区的日历分量，避免 JS Date 在东八区把日期推到前一天。 */
+    function tryParseDateParts(s) {
       if (s == null || s === "") return null;
       const str = String(s).trim();
       if (str.length > 32) return null;
 
-      let m = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+      let m = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
       if (m) {
-        const d = new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
-        return isValidDateParts(d, +m[1], +m[2], +m[3]) ? d : null;
+        const y = +m[1], mo = +m[2], d = +m[3];
+        if (!isValidYmd(y, mo, d)) return null;
+        const H = m[4] != null ? +m[4] : 0;
+        const M = m[5] != null ? +m[5] : 0;
+        const S = m[6] != null ? +m[6] : 0;
+        if (H > 23 || M > 59 || S > 59) return null;
+        return { y, m: mo, d, H, M, S, hasTime: m[4] != null };
       }
 
       m = str.match(/^(\d{4})(\d{2})(\d{2})$/);
       if (m) {
-        const d = new Date(+m[1], +m[2] - 1, +m[3]);
-        return isValidDateParts(d, +m[1], +m[2], +m[3]) ? d : null;
+        const y = +m[1], mo = +m[2], d = +m[3];
+        if (!isValidYmd(y, mo, d)) return null;
+        return { y, m: mo, d, H: 0, M: 0, S: 0, hasTime: false };
       }
 
-      m = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+      m = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
       if (m) {
-        const d = new Date(+m[3], +m[1] - 1, +m[2], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
-        return isValidDateParts(d, +m[3], +m[1], +m[2]) ? d : null;
+        const mo = +m[1], d = +m[2], y = +m[3];
+        if (!isValidYmd(y, mo, d)) return null;
+        const H = m[4] != null ? +m[4] : 0;
+        const M = m[5] != null ? +m[5] : 0;
+        const S = m[6] != null ? +m[6] : 0;
+        if (H > 23 || M > 59 || S > 59) return null;
+        return { y, m: mo, d, H, M, S, hasTime: m[4] != null };
       }
 
       return null;
     }
 
-    function excelSerialToDate(serial) {
-      if (!Number.isFinite(serial) || serial < 1 || serial > 2958465) return null;
-      const d = new Date(Math.round((serial - 25569) * 86400 * 1000));
-      if (isNaN(d.getTime()) || d.getFullYear() < 1900 || d.getFullYear() > 2100) return null;
-      return d;
+    function formatDateParts(p) {
+      const date = `${p.y}-${pad2(p.m)}-${pad2(p.d)}`;
+      if (!p.hasTime && !p.H && !p.M && !p.S) return date;
+      return `${date} ${pad2(p.H)}:${pad2(p.M)}:${pad2(p.S)}`;
     }
 
-    function setDateCell(cell, d) {
-      cell.t = "d";
-      cell.v = d;
-      cell.z = hasTime(d) ? "yyyy-mm-dd hh:mm:ss" : "yyyy-mm-dd";
-      delete cell.w;
+    /**
+     * 写入 Excel 日期序列号，不经过 JS Date。
+     * cellDates:true 会按 UTC 解释 Date，东八区零点会变成前一天。
+     */
+    function setDateCell(cell, p) {
+      const serial = (Date.UTC(p.y, p.m - 1, p.d, p.H || 0, p.M || 0, p.S || 0) / 86400000) + 25569;
+      cell.t = "n";
+      cell.v = serial;
+      cell.z = (p.hasTime || p.H || p.M || p.S) ? "yyyy-mm-dd hh:mm:ss" : "yyyy-mm-dd";
+      cell.w = formatDateParts(p);
     }
 
     function fixWorksheetDates(sheet) {
@@ -1427,34 +1435,20 @@
         for (let C = range.s.c; C <= range.e.c; C++) {
           const addr = XLSX.utils.encode_cell({ r: R, c: C });
           const cell = sheet[addr];
-          if (!cell) continue;
+          if (!cell || cell.t === "d") continue;
 
-          if (cell.t === "d" && cell.v instanceof Date) {
-            if (!cell.z) cell.z = hasTime(cell.v) ? "yyyy-mm-dd hh:mm:ss" : "yyyy-mm-dd";
-            continue;
-          }
-
-          if (cell.t === "n") {
-            if (Number.isInteger(cell.v) && cell.v >= 19000101 && cell.v <= 21001231) {
-              const s = String(cell.v);
-              const d = new Date(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8));
-              if (isValidDateParts(d, +s.slice(0, 4), +s.slice(4, 6), +s.slice(6, 8))) {
-                setDateCell(cell, d);
-                continue;
-              }
-            }
-            if (cell.v > 1000 && cell.v < 1000000) {
-              const d = excelSerialToDate(cell.v);
-              if (d) {
-                setDateCell(cell, d);
-                continue;
-              }
+          if (cell.t === "n" && Number.isInteger(cell.v) && cell.v >= 19000101 && cell.v <= 22001231) {
+            const s = String(cell.v);
+            const p = tryParseDateParts(s);
+            if (p) {
+              setDateCell(cell, p);
+              continue;
             }
           }
 
-          const str = cell.t === "s" || cell.t === "str" ? String(cell.v) : String(cell.v ?? "");
-          const d = tryParseDateString(str);
-          if (d) setDateCell(cell, d);
+          const str = cell.t === "s" || cell.t === "str" ? String(cell.v) : "";
+          const p = tryParseDateParts(str);
+          if (p) setDateCell(cell, p);
         }
       }
     }
@@ -1479,7 +1473,6 @@
     function getCellDisplay(sheet, r, c) {
       const cell = sheet[XLSX.utils.encode_cell({ r, c })];
       if (!cell) return "";
-      if (cell.t === "d" && cell.v instanceof Date) return formatDateDisplay(cell.v);
       if (cell.w != null) return String(cell.w);
       return String(cell.v ?? "");
     }
@@ -1597,7 +1590,7 @@
       }
       try {
         const outName = getOutputFileName();
-        XLSX.writeFile(csvWorkbook, outName, { cellDates: true });
+        XLSX.writeFile(csvWorkbook, outName);
         showToast(`已开始下载 ${outName}`);
       } catch {
         showToast("下载失败，请重试");
