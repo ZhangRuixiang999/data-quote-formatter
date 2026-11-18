@@ -176,6 +176,21 @@
       font-weight: 600;
       margin: 0;
     }
+    .panel-title-group {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+      min-width: 0;
+    }
+    .panel-stats {
+      font-size: 0.75rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .panel-stats[hidden] { display: none; }
+    .panel-stats .num { color: var(--positive); font-weight: 600; }
+    .panel-stats .dup { color: var(--accent); font-weight: 600; }
     .panel-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
     .panel-body {
       flex: 1;
@@ -274,6 +289,7 @@
       margin-bottom: 0.4rem;
     }
     .opt-group select,
+    .opt-group input[type="text"],
     .opt-group input[type="number"] {
       width: 100%;
       font-family: inherit;
@@ -597,6 +613,63 @@
       outline: none;
       min-width: 11rem;
     }
+
+    /* ── JSON 转 SQL ── */
+    .opt-group label .req { color: #f0616d; font-weight: 600; letter-spacing: 0; margin-left: 0.2rem; }
+    .opt-group label .opt { color: var(--placeholder); font-weight: 400; letter-spacing: 0; margin-left: 0.2rem; }
+    .panel-title .req { color: #f0616d; font-size: 0.72rem; font-weight: 600; margin-left: 0.3rem; }
+    .opt-group input.invalid { border-color: #f0616d; box-shadow: 0 0 0 3px rgba(240, 97, 109, 0.15); }
+    .opt-group[hidden] { display: none; }
+    .json-options { margin-top: 0; margin-bottom: 1.25rem; }
+    .field-tree {
+      flex: 1;
+      min-height: 260px;
+      max-height: 460px;
+      overflow: auto;
+      padding: 0.4rem 0;
+    }
+    .field-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.28rem 1rem;
+      font-size: 0.82rem;
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+    .field-row:hover { background: var(--surface-hover); }
+    .field-row input { accent-color: var(--accent); width: 0.95rem; height: 0.95rem; flex-shrink: 0; margin: 0; }
+    .field-key { font-family: var(--mono); color: var(--text); font-weight: 500; }
+    .field-key.elem { color: var(--muted); font-style: italic; }
+    .type-badge {
+      font-size: 0.68rem;
+      padding: 0.05rem 0.4rem;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+    .type-badge.t-object, .type-badge.t-array { color: var(--accent); border-color: var(--accent-soft); background: var(--accent-soft); }
+    .type-badge.t-jsonstr { color: var(--warning); border-color: rgba(245, 166, 35, 0.35); }
+    .type-badge.t-number, .type-badge.t-boolean { color: var(--positive); }
+    .field-sample {
+      font-family: var(--mono);
+      font-size: 0.76rem;
+      color: var(--placeholder);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+      flex: 1;
+    }
+    .json-hint {
+      padding: 1.25rem 1rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .json-hint.error { color: var(--warning); }
+    .json-sql-panel { margin-top: 1.25rem; min-height: 0; }
+    .json-sql-panel .output-box { min-height: 180px; word-break: normal; overflow-x: auto; white-space: pre; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.8rem; }
   </style>
 </head>
 <body>
@@ -620,6 +693,7 @@
     <nav class="tool-tabs" role="tablist">
       <button type="button" class="tool-tab active" data-tab="quote" role="tab" aria-selected="true">数据格式修改</button>
       <button type="button" class="tool-tab" data-tab="csv2xlsx" role="tab" aria-selected="false">CSV 转 Excel</button>
+      <button type="button" class="tool-tab" data-tab="json2hive" role="tab" aria-selected="false">JSON 转 SQL</button>
     </nav>
 
     <div id="panelQuote" class="tool-panel active">
@@ -649,7 +723,14 @@
 
       <section class="panel">
         <div class="panel-head">
-          <h2 class="panel-title">输出结果</h2>
+          <div class="panel-title-group">
+            <h2 class="panel-title">输出结果</h2>
+            <span class="panel-stats" id="panelStats" hidden>
+              原始 <span class="num" id="rawCount">0</span> 项 ·
+              去重后 <span class="num" id="uniqueCount">0</span> 项<span id="dupWrap" hidden> ·
+              重复 <span class="dup" id="dupCount">0</span> 项</span>
+            </span>
+          </div>
           <div class="panel-actions">
             <button type="button" class="btn btn-success" id="btnCopy">复制结果</button>
           </div>
@@ -731,6 +812,7 @@
 
     <div class="status-bar">
       <span>已解析 <span class="count" id="itemCount">0</span> 项</span>
+      <span>去重后 <span class="count" id="uniqueCountBar">0</span> 项</span>
       <span class="detected" id="detectedMode"></span>
     </div>
     </div>
@@ -784,6 +866,104 @@
 
         <div class="csv-empty-hint" id="csvEmptyHint">上传 CSV 后可预览前 5 行，并下载为 Excel 表格</div>
       </div>
+    </div>
+
+    <div id="panelJson" class="tool-panel">
+      <div class="options json-options" autocomplete="off">
+        <div class="opt-group">
+          <label for="jsonEngine">输出格式</label>
+          <select id="jsonEngine">
+            <option value="hive">Hive</option>
+            <option value="ck">ClickHouse</option>
+          </select>
+        </div>
+        <div class="opt-group">
+          <label for="jsonField">JSON 字段名 <span class="req">*必填</span></label>
+          <input type="text" id="jsonField" placeholder="如 ext_info" spellcheck="false" />
+        </div>
+        <div class="opt-group">
+          <label for="jsonTable">表名 <span class="opt">选填</span></label>
+          <input type="text" id="jsonTable" placeholder="不填则输出 your_table" spellcheck="false" />
+        </div>
+        <div class="opt-group">
+          <label for="jsonExtraCols">附带字段 <span class="opt">选填，逗号分隔</span></label>
+          <input type="text" id="jsonExtraCols" placeholder="如 dt, device_id" spellcheck="false" />
+        </div>
+        <div class="opt-group" id="jsonModeGroup">
+          <label for="jsonMode">解析函数</label>
+          <select id="jsonMode">
+            <option value="gjo">get_json_object（逐字段）</option>
+            <option value="jt">json_tuple（字段多时更快）</option>
+          </select>
+        </div>
+        <div class="opt-group">
+          <label for="jsonArrayMode">数组处理</label>
+          <select id="jsonArrayMode">
+            <option value="first">取第 1 个元素</option>
+            <option value="explode">展开成多行</option>
+            <option value="all">合并为数组</option>
+          </select>
+        </div>
+        <div class="opt-group">
+          <label for="jsonAliasMode">输出列名</label>
+          <select id="jsonAliasMode">
+            <option value="leaf">末级字段名（重名用完整路径）</option>
+            <option value="full">完整路径 a_b_c</option>
+          </select>
+        </div>
+        <div class="opt-group" style="display:flex;align-items:flex-end;">
+          <label class="checkbox-row">
+            <input type="checkbox" id="jsonCast" autocomplete="off" />
+            按样例类型转换（数值 / 布尔）
+          </label>
+        </div>
+      </div>
+
+      <div class="grid">
+        <section class="panel">
+          <div class="panel-head">
+            <h2 class="panel-title">JSON 样例 <span class="req">*必填</span></h2>
+            <div class="panel-actions">
+              <button type="button" class="btn" id="btnJsonDemo">示例</button>
+              <button type="button" class="btn" id="btnJsonFormat">格式化</button>
+              <button type="button" class="btn" id="btnJsonClear">清空</button>
+            </div>
+          </div>
+          <div class="panel-body">
+            <textarea id="jsonInput" spellcheck="false" placeholder="粘贴一条 JSON 样例数据…&#10;&#10;支持：嵌套对象 · 数组 · 字段值本身是 JSON 字符串 · 转义过的 JSON"></textarea>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div class="panel-title-group">
+              <h2 class="panel-title">选择需要的字段</h2>
+              <span class="panel-stats" id="jsonSelStats" hidden>已选 <span class="num" id="jsonSelCount">0</span> 个</span>
+            </div>
+            <div class="panel-actions">
+              <button type="button" class="btn" id="btnJsonSelectLeaves">全选末级</button>
+              <button type="button" class="btn" id="btnJsonSelectNone">清空</button>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="field-tree" id="jsonTree">
+              <div class="json-hint">在左侧粘贴 JSON 后，这里会列出所有字段，勾选想要的内容即可</div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <section class="panel json-sql-panel">
+        <div class="panel-head">
+          <h2 class="panel-title" id="jsonSqlTitle">Hive SQL</h2>
+          <div class="panel-actions">
+            <button type="button" class="btn btn-success" id="btnJsonCopy">复制 SQL</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="output-box empty" id="jsonSqlOutput">勾选字段后，这里会生成 Hive SQL…</div>
+        </div>
+      </section>
     </div>
   </div>
 
@@ -1039,11 +1219,15 @@
 
       items = items.map(cleanCell).filter(Boolean);
 
+      const rawCount = items.length;
+      const uniqueItems = [...new Set(items)];
+      const uniqueCount = uniqueItems.length;
+
       if ($("dedupe").checked) {
-        items = [...new Set(items)];
+        items = uniqueItems;
       }
 
-      return { items, detected };
+      return { items, detected, rawCount, uniqueCount };
     }
 
     function getQuoteChar() {
@@ -1099,10 +1283,16 @@
 
     function convert() {
       updateColPicker(false);
-      const { items, detected } = parseInput(input.value);
+      const { items, detected, rawCount = 0, uniqueCount = 0 } = parseInput(input.value);
       const result = formatOutput(items);
 
-      itemCount.textContent = items.length;
+      itemCount.textContent = rawCount;
+      $("uniqueCountBar").textContent = uniqueCount;
+      $("rawCount").textContent = rawCount;
+      $("uniqueCount").textContent = uniqueCount;
+      $("dupCount").textContent = rawCount - uniqueCount;
+      $("dupWrap").hidden = rawCount === uniqueCount;
+      $("panelStats").hidden = rawCount === 0;
       detectedMode.textContent = detected;
 
       if (result) {
@@ -1284,6 +1474,10 @@
         desc: "上传 CSV 文件，支持多种编码与分隔符，日期字段正确转为 Excel 日期格式并下载",
         example: "示例：data.csv → 下载 data.xlsx",
       },
+      json2hive: {
+        desc: "填写 JSON 字段名并粘贴一条样例，勾选想要的内容，自动生成 Hive / ClickHouse 解析 SQL",
+        example: "示例：<code>{\"user\":{\"name\":\"a\"}}</code> → Hive <code>get_json_object(t.ext_info, '$.user.name')</code> / CK <code>JSONExtractString(t.ext_info, 'user', 'name')</code>",
+      },
     };
 
     document.querySelectorAll(".tool-tab").forEach((tab) => {
@@ -1296,6 +1490,7 @@
         });
         $("panelQuote").classList.toggle("active", name === "quote");
         $("panelCsv").classList.toggle("active", name === "csv2xlsx");
+        $("panelJson").classList.toggle("active", name === "json2hive");
         const meta = TAB_META[name];
         $("headerDesc").innerHTML = meta.desc;
         $("headerExample").innerHTML = meta.example;
@@ -1598,6 +1793,646 @@
     });
 
     btnDownloadXlsx.disabled = true;
+
+    // ── JSON 转 Hive ──
+    const jsonInput = $("jsonInput");
+    const jsonTree = $("jsonTree");
+    const jsonSqlOutput = $("jsonSqlOutput");
+    let jsonRoot = null;
+    let jsonRows = [];
+    let jsonSelected = new Set();
+    let jsonArrElemKinds = new Map();
+    let jsonArrElemNodeKind = new Map();
+
+    const HIVE_RESERVED = new Set([
+      "all", "and", "as", "asc", "between", "by", "case", "cast", "column", "create", "cross", "current",
+      "date", "desc", "distinct", "else", "end", "exists", "false", "from", "full", "function", "group",
+      "having", "in", "inner", "insert", "interval", "into", "is", "join", "left", "like", "limit", "not",
+      "null", "on", "or", "order", "outer", "partition", "range", "right", "row", "rows", "select", "sort",
+      "table", "then", "time", "timestamp", "to", "true", "union", "user", "using", "values", "when", "where", "with",
+    ]);
+    const GJO_KEY_RE = /^[A-Za-z0-9_\-:\s]+$/;
+
+    const JSON_DEMO = {
+      user: { id: 10086, name: "张三", vip: true },
+      order_id: "A20261118001",
+      amount: 199.5,
+      items: [
+        { sku: "S001", price: 99.5, qty: 1 },
+        { sku: "S002", price: 100, qty: 2 },
+      ],
+      tags: ["数码", "家电"],
+      ext: JSON.stringify({ source: "push", ab: "53_a" }),
+    };
+
+    function lenientJsonParse(text) {
+      const raw = text.trim();
+      if (!raw) return {};
+      let firstErr = null;
+      const tryParse = (s) => {
+        try { return { ok: true, v: JSON.parse(s) }; }
+        catch (e) { if (!firstErr) firstErr = e; return { ok: false }; }
+      };
+      let r = tryParse(raw);
+      if (!r.ok) {
+        // 被转义过的 JSON：{\"a\":1}
+        const u = tryParse('"' + raw + '"');
+        if (u.ok && typeof u.v === "string") r = tryParse(u.v.trim());
+      }
+      if (!r.ok) {
+        // Python dict 风格：单引号 / True / None / 尾逗号
+        let s = raw.replace(/\bTrue\b/g, "true").replace(/\bFalse\b/g, "false").replace(/\bNone\b/g, "null").replace(/,\s*([}\]])/g, "$1");
+        if (!s.includes('"')) s = s.replace(/'/g, '"');
+        r = tryParse(s);
+      }
+      if (!r.ok) return { error: firstErr ? firstErr.message : "JSON 解析失败" };
+      let v = r.v;
+      for (let i = 0; i < 2 && typeof v === "string"; i++) {
+        const inner = tryParse(v.trim());
+        if (inner.ok && inner.v && typeof inner.v === "object") v = inner.v;
+        else break;
+      }
+      return { value: v };
+    }
+
+    function parseEmbeddedJson(s) {
+      const t = s.trim();
+      if (!((t.startsWith("{") && t.endsWith("}")) || (t.startsWith("[") && t.endsWith("]")))) return undefined;
+      try {
+        const v = JSON.parse(t);
+        return v && typeof v === "object" ? v : undefined;
+      } catch { return undefined; }
+    }
+
+    function segKey(segs) {
+      return segs.map((s) => (s.t === "key" ? "." + JSON.stringify(s.k) : s.t === "arr" ? "[]" : "#")).join("") || "$";
+    }
+
+    function readablePath(segs) {
+      return "$" + segs.map((s) => (s.t === "key" ? "." + s.k : s.t === "arr" ? "[]" : " → ")).join("");
+    }
+
+    function buildJsonNode(v, segs, label, isElem) {
+      const node = { segs, label, isElem: !!isElem, kind: "null", sample: null };
+      if (Array.isArray(v)) {
+        node.kind = "array";
+        node.len = v.length;
+        const elemSegs = [...segs, { t: "arr" }];
+        let elem = null;
+        v.slice(0, 200).forEach((item) => {
+          const n = buildJsonNode(item, elemSegs, "[元素]", true);
+          elem = elem ? mergeJsonNode(elem, n) : n;
+        });
+        node.elem = elem;
+      } else if (v && typeof v === "object") {
+        node.kind = "object";
+        node.children = new Map();
+        Object.keys(v).forEach((k) => node.children.set(k, buildJsonNode(v[k], [...segs, { t: "key", k }], k, false)));
+      } else if (typeof v === "string") {
+        const embedded = parseEmbeddedJson(v);
+        node.sample = v;
+        if (embedded !== undefined) {
+          node.kind = "jsonstr";
+          node.inner = buildJsonNode(embedded, [...segs, { t: "str" }], label, isElem);
+        } else {
+          node.kind = "string";
+        }
+      } else if (typeof v === "number") {
+        node.kind = Number.isInteger(v) ? "int" : "float";
+        node.sample = v;
+      } else if (typeof v === "boolean") {
+        node.kind = "boolean";
+        node.sample = v;
+      }
+      return node;
+    }
+
+    function mergeJsonNode(a, b) {
+      if (a.kind === "null") return b;
+      if (b.kind === "null") return a;
+      if (a.kind !== b.kind) {
+        if ((a.kind === "int" || a.kind === "float") && (b.kind === "int" || b.kind === "float")) {
+          a.kind = "float";
+          return a;
+        }
+        return { ...a, kind: "mixed", children: undefined, elem: undefined, inner: undefined };
+      }
+      if (a.kind === "object") {
+        b.children.forEach((bn, k) => a.children.set(k, a.children.has(k) ? mergeJsonNode(a.children.get(k), bn) : bn));
+      } else if (a.kind === "array") {
+        a.elem = a.elem && b.elem ? mergeJsonNode(a.elem, b.elem) : a.elem || b.elem;
+        a.len = Math.max(a.len, b.len);
+      } else if (a.kind === "jsonstr") {
+        a.inner = mergeJsonNode(a.inner, b.inner);
+      }
+      return a;
+    }
+
+    function jsonDisplayChildren(node) {
+      if (node.kind === "object") return [...node.children.values()];
+      if (node.kind === "array") {
+        if (!node.elem) return [];
+        return node.elem.kind === "object" ? jsonDisplayChildren(node.elem) : [node.elem];
+      }
+      if (node.kind === "jsonstr") return jsonDisplayChildren(node.inner);
+      return [];
+    }
+
+    function splitKindOf(node) {
+      if (!node) return "primitive";
+      if (node.kind === "object") return "object";
+      if (node.kind === "array") return "array";
+      return "primitive";
+    }
+
+    function collectArrKinds(node, map) {
+      if (!node) return;
+      if (node.kind === "array") {
+        const k = segKey([...node.segs, { t: "arr" }]);
+        map.set(k, splitKindOf(node.elem));
+        jsonArrElemNodeKind.set(k, node.elem ? node.elem.kind : "null");
+        collectArrKinds(node.elem, map);
+      } else if (node.kind === "object") {
+        node.children.forEach((c) => collectArrKinds(c, map));
+      } else if (node.kind === "jsonstr") {
+        collectArrKinds(node.inner, map);
+      }
+    }
+
+    function flattenJsonRows(root) {
+      const rows = [];
+      const walk = (node, depth) => {
+        jsonDisplayChildren(node).forEach((child) => {
+          const kids = jsonDisplayChildren(child);
+          rows.push({ node: child, depth, id: segKey(child.segs), leaf: kids.length === 0 });
+          walk(child, depth + 1);
+        });
+      };
+      walk(root, 0);
+      return rows;
+    }
+
+    function jsonTypeInfo(node) {
+      const short = { object: "object", array: "array", jsonstr: "JSON串", string: "string", int: "int", float: "double", boolean: "boolean", null: "null", mixed: "混合" };
+      if (node.kind === "array") {
+        const ek = node.elem ? short[node.elem.kind] : "空";
+        return { text: `array[${ek}]`, cls: "array" };
+      }
+      const cls = node.kind === "int" || node.kind === "float" ? "number" : node.kind;
+      return { text: short[node.kind] || node.kind, cls };
+    }
+
+    function jsonSampleText(node) {
+      let s;
+      if (node.kind === "object") s = `{ ${node.children.size} 个字段 }`;
+      else if (node.kind === "array") s = `[ ${node.len} 项 ]`;
+      else if (node.kind === "string" || node.kind === "jsonstr") s = JSON.stringify(node.sample);
+      else if (node.kind === "mixed") s = "多种类型";
+      else s = String(node.sample);
+      return s.length > 60 ? s.slice(0, 60) + "…" : s;
+    }
+
+    function renderJsonTree(message, isError) {
+      if (message) {
+        jsonTree.innerHTML = `<div class="json-hint${isError ? " error" : ""}">${escapeHtml(message)}</div>`;
+        return;
+      }
+      jsonTree.innerHTML = jsonRows.map((r, i) => {
+        const n = r.node;
+        const info = jsonTypeInfo(n);
+        return `<label class="field-row" style="padding-left:${1 + r.depth * 1.2}rem" title="${escapeHtml(readablePath(n.segs))}">`
+          + `<input type="checkbox" data-idx="${i}"${jsonSelected.has(r.id) ? " checked" : ""} />`
+          + `<span class="field-key${n.isElem ? " elem" : ""}">${escapeHtml(n.label)}</span>`
+          + `<span class="type-badge t-${info.cls}">${escapeHtml(info.text)}</span>`
+          + `<span class="field-sample">${escapeHtml(jsonSampleText(n))}</span>`
+          + `</label>`;
+      }).join("");
+    }
+
+    function updateJsonSelStats() {
+      const n = jsonRows.filter((r) => jsonSelected.has(r.id)).length;
+      $("jsonSelCount").textContent = n;
+      $("jsonSelStats").hidden = jsonRows.length === 0;
+    }
+
+    function parseJsonInput() {
+      const text = jsonInput.value;
+      jsonRoot = null;
+      jsonRows = [];
+      jsonArrElemKinds = new Map();
+      jsonArrElemNodeKind = new Map();
+      if (!text.trim()) {
+        renderJsonTree("在左侧粘贴 JSON 后，这里会列出所有字段，勾选想要的内容即可");
+        updateJsonSelStats();
+        generateHiveSql();
+        return;
+      }
+      const res = lenientJsonParse(text);
+      if (res.error || !res.value || typeof res.value !== "object") {
+        renderJsonTree(res.error ? "JSON 格式有误：" + res.error : "需要 JSON 对象 {…} 或数组 […]", true);
+        updateJsonSelStats();
+        generateHiveSql();
+        return;
+      }
+      jsonRoot = buildJsonNode(res.value, [], "$", false);
+      collectArrKinds(jsonRoot, jsonArrElemKinds);
+      jsonRows = flattenJsonRows(jsonRoot);
+
+      const ids = new Set(jsonRows.map((r) => r.id));
+      const kept = new Set([...jsonSelected].filter((id) => ids.has(id)));
+      jsonSelected = kept.size ? kept : new Set(jsonRows.filter((r) => r.leaf).map((r) => r.id));
+
+      renderJsonTree();
+      updateJsonSelStats();
+      generateHiveSql();
+    }
+
+    function hiveStr(s) {
+      return "'" + String(s).replace(/\\/g, "\\\\").replace(/'/g, "\\'") + "'";
+    }
+
+    function asciiIdent(name) {
+      let s = String(name).replace(/[^A-Za-z0-9_]+/g, "_").replace(/^_+|_+$/g, "").toLowerCase();
+      if (!s) s = "f";
+      if (/^\d/.test(s)) s = "f_" + s;
+      if (HIVE_RESERVED.has(s)) s += "_v";
+      return s;
+    }
+
+    function formatAlias(name) {
+      const s = String(name).replace(/[\s.\-:/]+/g, "_").replace(/^_+|_+$/g, "") || "col";
+      if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(s) && !HIVE_RESERVED.has(s.toLowerCase())) return s;
+      return "`" + s.replace(/`/g, "") + "`";
+    }
+
+    function generateHiveSql() {
+      const engine = $("jsonEngine").value;
+      const isCk = engine === "ck";
+      const field = $("jsonField").value.trim();
+      $("jsonField").classList.toggle("invalid", !!jsonRoot && !field);
+      const items = jsonRows.filter((r) => jsonSelected.has(r.id)).map((r) => ({ node: r.node, segs: r.node.segs, expr: null }));
+      if (!jsonRoot || !items.length || !field) {
+        jsonSqlOutput.textContent = !jsonRoot
+          ? "填写 JSON 字段名、粘贴 JSON 样例并勾选字段后，这里会生成 SQL…"
+          : !field
+            ? "请先在上方填写 JSON 字段名（必填）…"
+            : "请在上方勾选需要的字段…";
+        jsonSqlOutput.classList.add("empty");
+        return;
+      }
+
+      const mode = $("jsonMode").value;
+      const arrMode = $("jsonArrayMode").value;
+      const useCast = $("jsonCast").checked;
+      const tableInput = $("jsonTable").value.trim();
+      const tableName = tableInput || "your_table";
+      const colRef = /[.()`]/.test(field) ? field : "t." + field;
+
+      const lateral = [];
+      const warnings = new Set();
+      const exploded = [];
+      const usedCols = new Set();
+      let lvNo = 0;
+      let jtNo = 0;
+
+      const uniqueCol = (base) => {
+        let name = base;
+        let i = 2;
+        while (usedCols.has(name)) name = `${base}_${i++}`;
+        usedCols.add(name);
+        return name;
+      };
+
+      const pathSuffix = (rel) => rel.map((s) => (s.t === "key" ? "." + s.k : arrMode === "all" ? "[*]" : "[0]")).join("");
+
+      const checkKeys = (rel) => {
+        rel.forEach((s) => {
+          if (s.t === "key" && !GJO_KEY_RE.test(s.k)) {
+            warnings.add(`字段「${s.k}」含 get_json_object 不支持的字符（如 . $ 中文等），可能取不到值，建议把「解析函数」切换为 json_tuple`);
+          }
+        });
+      };
+
+      // 对一个 JSON 串表达式按相对路径取值；路径以数组开头时包一层对象，兼容老版本 Hive
+      const gjo = (ctx, rel) => {
+        if (!rel.length) return ctx;
+        if (rel[0].t === "arr") return `get_json_object(concat('{"r":', ${ctx}, '}'), ${hiveStr("$.r" + pathSuffix(rel))})`;
+        return `get_json_object(${ctx}, ${hiveStr("$" + pathSuffix(rel))})`;
+      };
+
+      const splitExpr = (base, kind) => {
+        if (kind === "object") return String.raw`split(regexp_replace(regexp_replace(${base}, '^\\[|\\]$', ''), '\\}\\s*,\\s*\\{', '}#@#{'), '#@#')`;
+        if (kind === "array") return String.raw`split(regexp_replace(regexp_replace(${base}, '^\\[|\\]$', ''), '\\]\\s*,\\s*\\[', ']#@#['), '#@#')`;
+        return String.raw`split(regexp_replace(${base}, '^\\[\\s*"?|"?\\s*\\]$', ''), '"?\\s*,\\s*"?')`;
+      };
+
+      const arrayName = (segs, idx) => {
+        for (let i = idx - 1; i >= 0; i--) if (segs[i].t === "key") return asciiIdent(segs[i].k);
+        return "elem";
+      };
+
+      const addExplode = (base, segs, idx) => {
+        const arrSegs = segs.slice(0, idx + 1);
+        const kind = jsonArrElemKinds.get(segKey(arrSegs)) || "primitive";
+        const lv = `lv${++lvNo}`;
+        const col = uniqueCol(arrayName(segs, idx) + "_item");
+        lateral.push(`lateral view outer explode(${splitExpr(base, kind)}) ${lv} as ${col}`);
+        exploded.push({ key: segKey(arrSegs), label: readablePath(arrSegs) });
+        return `${lv}.${col}`;
+      };
+
+      const advance = (list, pos) => list.map((e) => ({ it: e.it, pos }));
+
+      function genGjo(ctx, list) {
+        const groups = new Map();
+        list.forEach((e) => {
+          const segs = e.it.segs;
+          let i = e.pos;
+          while (i < segs.length && !(segs[i].t === "str" || (segs[i].t === "arr" && arrMode === "explode"))) i++;
+          if (i === segs.length) {
+            const rel = segs.slice(e.pos);
+            checkKeys(rel);
+            e.it.expr = gjo(ctx, rel);
+            return;
+          }
+          if (segs[i].t === "str" && arrMode === "all" && segs.slice(e.pos, i).some((s) => s.t === "arr")) {
+            warnings.add("数组里的 JSON 串无法用 [*] 合并取值，请把「数组处理」切换为「展开成多行」或「取第 1 个元素」");
+          }
+          const gk = segKey(segs.slice(0, i + 1));
+          if (!groups.has(gk)) groups.set(gk, { at: i, segs, pos: e.pos, entries: [] });
+          groups.get(gk).entries.push(e);
+        });
+        groups.forEach((g) => {
+          const prefix = g.segs.slice(g.pos, g.at);
+          checkKeys(prefix);
+          const base = gjo(ctx, prefix);
+          const next = advance(g.entries, g.at + 1);
+          if (g.segs[g.at].t === "str") genGjo(base, next);
+          else genGjo(addExplode(base, g.segs, g.at), next);
+        });
+      }
+
+      function genJt(ctx, list) {
+        const keyGroups = new Map();
+        const strList = [];
+        const arrList = [];
+        list.forEach((e) => {
+          const segs = e.it.segs;
+          if (e.pos >= segs.length) {
+            e.it.expr = ctx;
+            return;
+          }
+          const s = segs[e.pos];
+          if (s.t === "str") strList.push(e);
+          else if (s.t === "key") {
+            if (!keyGroups.has(s.k)) keyGroups.set(s.k, []);
+            keyGroups.get(s.k).push(e);
+          } else arrList.push(e);
+        });
+        if (strList.length) genJt(ctx, strList.map((e) => ({ it: e.it, pos: e.pos + 1 })));
+        if (keyGroups.size) {
+          const lv = `jt${++jtNo}`;
+          const keys = [...keyGroups.keys()];
+          const cols = keys.map((k) => uniqueCol(asciiIdent(k)));
+          lateral.push(`lateral view json_tuple(${ctx}, ${keys.map(hiveStr).join(", ")}) ${lv} as ${cols.join(", ")}`);
+          keys.forEach((k, i) => genJt(`${lv}.${cols[i]}`, keyGroups.get(k).map((e) => ({ it: e.it, pos: e.pos + 1 }))));
+        }
+        if (arrList.length) {
+          const e0 = arrList[0];
+          if (arrMode === "explode") {
+            genJt(addExplode(ctx, e0.it.segs, e0.pos), arrList.map((e) => ({ it: e.it, pos: e.pos + 1 })));
+          } else if (arrMode === "first") {
+            genJt(gjo(ctx, [e0.it.segs[e0.pos]]), arrList.map((e) => ({ it: e.it, pos: e.pos + 1 })));
+          } else {
+            arrList.forEach((e) => {
+              const rel = e.it.segs.slice(e.pos);
+              if (rel.some((s) => s.t === "str")) warnings.add("数组里的 JSON 串无法用 [*] 合并取值，请把「数组处理」切换为「展开成多行」或「取第 1 个元素」");
+              const clean = rel.filter((s) => s.t !== "str");
+              checkKeys(clean);
+              e.it.expr = gjo(ctx, clean);
+            });
+          }
+        }
+      }
+
+      // ── ClickHouse：JSONExtract* 系列，数组下标从 1 开始，展开用 LEFT ARRAY JOIN ──
+      const ckArgs = (rel) => rel.map((s) => (s.t === "key" ? hiveStr(s.k) : "1"));
+      const ckCall = (fn, ctx, args, extra) => `${fn}(${[ctx, ...args, ...(extra ? [extra] : [])].join(", ")})`;
+      const ckLeafFn = (kind) => {
+        if (kind === "string" || kind === "jsonstr") return "JSONExtractString";
+        if (useCast && kind === "int") return "JSONExtractInt";
+        if (useCast && kind === "float") return "JSONExtractFloat";
+        if (useCast && kind === "boolean") return "JSONExtractBool";
+        return "JSONExtractRaw";
+      };
+      const ckPrimArrType = (elemKind) => {
+        if (elemKind === "string" || elemKind === "jsonstr") return "Array(String)";
+        if (useCast && elemKind === "int") return "Array(Int64)";
+        if (useCast && elemKind === "float") return "Array(Float64)";
+        if (useCast && elemKind === "boolean") return "Array(Bool)";
+        return null;
+      };
+      // 数组表达式：基础类型数组直接按类型取，对象 / 嵌套数组取原始 JSON 串
+      const ckArrayExpr = (ctx, args, arrSegs) => {
+        const key = segKey(arrSegs);
+        const t = (jsonArrElemKinds.get(key) || "primitive") === "primitive" ? ckPrimArrType(jsonArrElemNodeKind.get(key)) : null;
+        return { expr: t ? ckCall("JSONExtract", ctx, args, hiveStr(t)) : ckCall("JSONExtractArrayRaw", ctx, args), typed: !!t };
+      };
+      let ckLambdaNo = 0;
+
+      function genCk(ctx, list, ctxDecoded) {
+        const groups = new Map();
+        list.forEach((e) => {
+          const segs = e.it.segs;
+          let i = e.pos;
+          while (i < segs.length && !(segs[i].t === "str" || (segs[i].t === "arr" && arrMode !== "first"))) i++;
+          if (i === segs.length) {
+            const rel = segs.slice(e.pos);
+            e.it.expr = !rel.length && ctxDecoded ? ctx : ckCall(ckLeafFn(e.it.node.kind), ctx, ckArgs(rel));
+            return;
+          }
+          if (segs[i].t === "arr" && arrMode === "all") {
+            // 合并为数组：每个字段单独 arrayMap
+            const prefix = segs.slice(e.pos, i);
+            const { expr, typed } = ckArrayExpr(ctx, ckArgs(prefix), segs.slice(0, i + 1));
+            if (i + 1 === segs.length) {
+              e.it.expr = expr;
+              return;
+            }
+            const v = `x${++ckLambdaNo}`;
+            const sub = { it: { node: e.it.node, segs, expr: null }, pos: i + 1 };
+            genCk(v, [sub], typed);
+            e.it.expr = `arrayMap(${v} -> ${sub.it.expr}, ${typed ? expr : ckCall("JSONExtractArrayRaw", ctx, ckArgs(prefix))})`;
+            return;
+          }
+          const gk = segKey(segs.slice(0, i + 1));
+          if (!groups.has(gk)) groups.set(gk, { at: i, segs, pos: e.pos, entries: [] });
+          groups.get(gk).entries.push(e);
+        });
+        groups.forEach((g) => {
+          const prefix = g.segs.slice(g.pos, g.at);
+          const next = advance(g.entries, g.at + 1);
+          if (g.segs[g.at].t === "str") {
+            const base = !prefix.length && ctxDecoded ? ctx : ckCall("JSONExtractString", ctx, ckArgs(prefix));
+            genCk(base, next, false);
+            return;
+          }
+          const arrSegs = g.segs.slice(0, g.at + 1);
+          const { expr, typed } = ckArrayExpr(ctx, ckArgs(prefix), arrSegs);
+          const col = uniqueCol(arrayName(g.segs, g.at) + "_item");
+          lateral.push(`left array join ${expr} as ${col}`);
+          exploded.push({ key: segKey(arrSegs), label: readablePath(arrSegs) });
+          genCk(col, next, typed);
+        });
+      }
+
+      const startList = items.map((it) => ({ it, pos: 0 }));
+      if (isCk) genCk(colRef, startList, false);
+      else if (mode === "jt") genJt(colRef, startList);
+      else genGjo(colRef, startList);
+
+      for (let i = 0; i < exploded.length; i++) {
+        for (let j = i + 1; j < exploded.length; j++) {
+          const a = exploded[i].key;
+          const b = exploded[j].key;
+          if (!a.startsWith(b) && !b.startsWith(a)) {
+            warnings.add(`同时展开了互不相关的数组（${exploded[i].label}、${exploded[j].label}），结果是两者的笛卡尔积，建议分开查询`);
+          }
+        }
+      }
+
+      // 输出列名
+      const fullParts = (segs) => {
+        const parts = [];
+        segs.forEach((s, i) => {
+          if (s.t === "key") parts.push(s.k);
+          else if (s.t === "arr" && i === segs.length - 1) parts.push("item");
+        });
+        return parts;
+      };
+      const leafName = (segs) => {
+        const parts = fullParts(segs);
+        if (!parts.length) return "json_value";
+        if (segs[segs.length - 1].t === "arr" && parts.length > 1) return parts[parts.length - 2] + "_item";
+        return parts[parts.length - 1];
+      };
+      const fullName = (segs) => fullParts(segs).join("_") || "json_value";
+      const aliasMode = $("jsonAliasMode").value;
+      let names = items.map((it) => (aliasMode === "full" ? fullName(it.segs) : leafName(it.segs)));
+      if (aliasMode === "leaf") {
+        const cnt = {};
+        names.forEach((n) => { cnt[n.toLowerCase()] = (cnt[n.toLowerCase()] || 0) + 1; });
+        names = names.map((n, i) => (cnt[n.toLowerCase()] > 1 ? fullName(items[i].segs) : n));
+      }
+      const seen = {};
+      names = names.map((n) => {
+        const k = n.toLowerCase();
+        seen[k] = (seen[k] || 0) + 1;
+        return seen[k] > 1 ? `${n}_${seen[k]}` : n;
+      });
+
+      const castType = { int: "bigint", float: "double", boolean: "boolean" };
+      const selectLines = $("jsonExtraCols").value.split(/[,，\s]+/).filter(Boolean).map((c) => (/[.()`]/.test(c) ? c : "t." + c));
+      items.forEach((it, i) => {
+        const t = useCast && !isCk ? castType[it.node.kind] : null;
+        const expr = t ? `cast(${it.expr} as ${t})` : it.expr;
+        const alias = formatAlias(names[i]);
+        selectLines.push(expr === alias ? expr : `${expr} as ${alias}`);
+      });
+
+      const lines = [];
+      warnings.forEach((w) => lines.push("-- 注意：" + w));
+      if (exploded.length) {
+        lines.push(isCk
+          ? "-- 说明：left array join 把数组展开成多行，数组为空时也保留原行"
+          : "-- 说明：explode 用正则把数组拆成多行；若数组元素里还嵌套数组/对象，请先抽样核对拆分结果");
+      }
+      if (isCk && arrMode === "first" && items.some((it) => it.segs.some((s) => s.t === "arr"))) {
+        lines.push("-- 说明：ClickHouse 数组下标从 1 开始，1 即第 1 个元素");
+      }
+      lines.push("select");
+      selectLines.forEach((l, i) => lines.push((i === 0 ? "     " : "    ,") + l));
+      lines.push(`from ${tableName} ${isCk ? "as t" : "t"}${tableInput ? "" : "   -- 请替换为实际表名"}`);
+      lateral.forEach((l) => lines.push(l));
+      const d = new Date(Date.now() - 86400000);
+      const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      lines.push(`-- where t.dt = '${ymd}'   -- 按需补充分区条件`);
+      lines.push(";");
+
+      jsonSqlOutput.textContent = lines.join("\n");
+      jsonSqlOutput.classList.remove("empty");
+    }
+
+    let jsonParseTimer = null;
+    jsonInput.addEventListener("input", () => {
+      clearTimeout(jsonParseTimer);
+      jsonParseTimer = setTimeout(parseJsonInput, 200);
+    });
+    ["jsonField", "jsonTable", "jsonExtraCols"].forEach((id) => $(id).addEventListener("input", generateHiveSql));
+    ["jsonMode", "jsonArrayMode", "jsonAliasMode", "jsonCast"].forEach((id) => $(id).addEventListener("change", generateHiveSql));
+    function applyJsonEngine() {
+      const isCk = $("jsonEngine").value === "ck";
+      $("jsonModeGroup").hidden = isCk;
+      $("jsonSqlTitle").textContent = isCk ? "ClickHouse SQL" : "Hive SQL";
+      generateHiveSql();
+    }
+    $("jsonEngine").addEventListener("change", applyJsonEngine);
+
+    jsonTree.addEventListener("change", (e) => {
+      const idx = e.target.dataset && e.target.dataset.idx;
+      if (idx == null) return;
+      const row = jsonRows[+idx];
+      if (!row) return;
+      if (e.target.checked) jsonSelected.add(row.id);
+      else jsonSelected.delete(row.id);
+      updateJsonSelStats();
+      generateHiveSql();
+    });
+
+    $("btnJsonSelectLeaves").addEventListener("click", () => {
+      jsonSelected = new Set(jsonRows.filter((r) => r.leaf).map((r) => r.id));
+      if (jsonRows.length) renderJsonTree();
+      updateJsonSelStats();
+      generateHiveSql();
+    });
+    $("btnJsonSelectNone").addEventListener("click", () => {
+      jsonSelected = new Set();
+      if (jsonRows.length) renderJsonTree();
+      updateJsonSelStats();
+      generateHiveSql();
+    });
+    $("btnJsonDemo").addEventListener("click", () => {
+      jsonInput.value = JSON.stringify(JSON_DEMO, null, 2);
+      if (!$("jsonField").value.trim()) $("jsonField").value = "ext_info";
+      jsonSelected = new Set();
+      parseJsonInput();
+    });
+    $("btnJsonFormat").addEventListener("click", () => {
+      const res = lenientJsonParse(jsonInput.value);
+      if (res.error || res.value === undefined) {
+        showToast(res.error ? "JSON 格式有误，无法格式化" : "请先粘贴 JSON");
+        return;
+      }
+      jsonInput.value = JSON.stringify(res.value, null, 2);
+      parseJsonInput();
+    });
+    $("btnJsonClear").addEventListener("click", () => {
+      jsonInput.value = "";
+      jsonSelected = new Set();
+      parseJsonInput();
+    });
+    $("btnJsonCopy").addEventListener("click", async () => {
+      if (jsonSqlOutput.classList.contains("empty")) {
+        showToast("没有可复制的 SQL");
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(jsonSqlOutput.textContent);
+        showToast("SQL 已复制到剪贴板");
+      } catch {
+        showToast("复制失败，请手动选择复制");
+      }
+    });
   </script>
 </body>
 </html>
