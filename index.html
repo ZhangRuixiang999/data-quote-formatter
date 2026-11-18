@@ -1476,7 +1476,7 @@
       },
       json2hive: {
         desc: "填写 JSON 字段名并粘贴一条样例，勾选想要的内容，自动生成 Hive / ClickHouse 解析 SQL",
-        example: "示例：<code>{\"user\":{\"name\":\"a\"}}</code> → Hive <code>get_json_object(t.ext_info, '$.user.name')</code> / CK <code>JSONExtractString(t.ext_info, 'user', 'name')</code>",
+        example: "示例：<code>{\"user\":{\"name\":\"a\"}}</code> → Hive <code>get_json_object(ext_info, '$.user.name')</code> / CK <code>JSONExtractString(ext_info, 'user', 'name')</code>",
       },
     };
 
@@ -2086,7 +2086,7 @@
       const useCast = $("jsonCast").checked;
       const tableInput = $("jsonTable").value.trim();
       const tableName = tableInput || "your_table";
-      const colRef = /[.()`]/.test(field) ? field : "t." + field;
+      const colRef = field;
 
       const lateral = [];
       const warnings = new Set();
@@ -2332,7 +2332,7 @@
       });
 
       const castType = { int: "bigint", float: "double", boolean: "boolean" };
-      const selectLines = $("jsonExtraCols").value.split(/[,，\s]+/).filter(Boolean).map((c) => (/[.()`]/.test(c) ? c : "t." + c));
+      const selectLines = $("jsonExtraCols").value.split(/[,，\s]+/).filter(Boolean);
       items.forEach((it, i) => {
         const t = useCast && !isCk ? castType[it.node.kind] : null;
         const expr = t ? `cast(${it.expr} as ${t})` : it.expr;
@@ -2352,11 +2352,11 @@
       }
       lines.push("select");
       selectLines.forEach((l, i) => lines.push((i === 0 ? "     " : "    ,") + l));
-      lines.push(`from ${tableName} ${isCk ? "as t" : "t"}${tableInput ? "" : "   -- 请替换为实际表名"}`);
+      lines.push(`from ${tableName}${tableInput ? "" : "   -- 请替换为实际表名"}`);
       lateral.forEach((l) => lines.push(l));
       const d = new Date(Date.now() - 86400000);
       const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      lines.push(`-- where t.dt = '${ymd}'   -- 按需补充分区条件`);
+      lines.push(`-- where dt = '${ymd}'   -- 按需补充分区条件`);
       lines.push(";");
 
       jsonSqlOutput.textContent = lines.join("\n");
