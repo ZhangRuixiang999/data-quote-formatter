@@ -704,6 +704,31 @@
     }
     .field-search .search-clear:hover { background: var(--surface-hover); color: var(--text); }
     .field-search .search-clear[hidden] { display: none; }
+    .field-search select {
+      flex-shrink: 0;
+      max-width: 8.5rem;
+      font-family: inherit;
+      font-size: 0.78rem;
+      padding: 0.25rem 0.45rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface-deep);
+      color: var(--text);
+      outline: none;
+    }
+    .field-search select:focus { border-color: var(--accent); }
+    .opt-group input[type="date"] {
+      width: 100%;
+      font-family: inherit;
+      font-size: 0.85rem;
+      padding: 0.4rem 0.65rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface-deep);
+      color: var(--text);
+      outline: none;
+      color-scheme: light dark;
+    }
     .field-key mark { background: var(--accent-soft); color: var(--accent); border-radius: 2px; padding: 0; }
     .json-sql-panel { margin-top: 1.25rem; min-height: 0; }
     .json-sql-panel .output-box { min-height: 180px; word-break: normal; overflow-x: auto; white-space: pre; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.8rem; }
@@ -926,6 +951,14 @@
           <label for="jsonExtraCols">附带字段 <span class="opt">选填，逗号分隔</span></label>
           <input type="text" id="jsonExtraCols" placeholder="如 dt, device_id" spellcheck="false" />
         </div>
+        <div class="opt-group">
+          <label for="jsonPartCol">分区字段 <span class="opt">选填</span></label>
+          <input type="text" id="jsonPartCol" placeholder="如 dt" spellcheck="false" />
+        </div>
+        <div class="opt-group">
+          <label for="jsonPartDate">分区日期 <span class="opt">选填</span></label>
+          <input type="date" id="jsonPartDate" />
+        </div>
         <div class="opt-group" id="jsonModeGroup">
           <label for="jsonMode">解析函数</label>
           <select id="jsonMode">
@@ -979,6 +1012,7 @@
             </div>
             <div class="panel-actions">
               <button type="button" class="btn" id="btnJsonSelectLeaves">全选末级</button>
+              <button type="button" class="btn" id="btnJsonInvert">反选</button>
               <button type="button" class="btn" id="btnJsonSelectNone">清空</button>
             </div>
           </div>
@@ -989,6 +1023,18 @@
               <button type="button" class="search-clear" id="btnJsonSearchClear" title="清除搜索" aria-label="清除搜索" hidden>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
               </button>
+              <select id="jsonTypeFilter" aria-label="按类型筛选" title="按类型筛选">
+                <option value="">全部类型</option>
+                <option value="leaf">仅末级字段</option>
+                <option value="checked">仅已选</option>
+                <option value="unchecked">仅未选</option>
+                <option value="string">string</option>
+                <option value="number">数值</option>
+                <option value="boolean">boolean</option>
+                <option value="object">object</option>
+                <option value="array">array</option>
+                <option value="jsonstr">JSON串</option>
+              </select>
             </div>
             <div class="field-tree" id="jsonTree">
               <div class="json-hint">在左侧粘贴 JSON 后，这里会列出所有字段，勾选想要的内容即可</div>
@@ -2054,15 +2100,27 @@
       return $("jsonFieldSearch").value.trim().toLowerCase();
     }
 
-    // Indices of rows to show for the current search: matches plus their ancestors for context.
+    function jsonRowMatchesType(r, type) {
+      if (!type) return true;
+      if (type === "leaf") return r.leaf;
+      if (type === "checked") return jsonSelected.has(r.id);
+      if (type === "unchecked") return !jsonSelected.has(r.id);
+      return jsonTypeInfo(r.node).cls === type;
+    }
+
+    // Indices of rows to show for the current search and type filter: matches plus their ancestors for context.
     function visibleJsonRowIdx() {
       const q = jsonSearchQuery();
-      if (!q) return jsonRows.map((_, i) => i);
+      const type = $("jsonTypeFilter").value;
+      if (!q && !type) return jsonRows.map((_, i) => i);
       const show = new Set();
       jsonRows.forEach((r, i) => {
-        const label = String(r.node.label).toLowerCase();
-        const path = readablePath(r.node.segs).toLowerCase();
-        if (!label.includes(q) && !path.includes(q)) return;
+        if (q) {
+          const label = String(r.node.label).toLowerCase();
+          const path = readablePath(r.node.segs).toLowerCase();
+          if (!label.includes(q) && !path.includes(q)) return;
+        }
+        if (!jsonRowMatchesType(r, type)) return;
         show.add(i);
         let depth = r.depth;
         for (let j = i - 1; j >= 0 && depth > 0; j--) {
@@ -2084,7 +2142,7 @@
       const q = jsonSearchQuery();
       const visible = visibleJsonRowIdx();
       if (!visible.length) {
-        jsonTree.innerHTML = `<div class="json-hint">没有匹配“${escapeHtml($("jsonFieldSearch").value.trim())}”的字段</div>`;
+        jsonTree.innerHTML = `<div class="json-hint">没有符合筛选条件的字段</div>`;
         return;
       }
       jsonTree.innerHTML = visible.map((i) => {
@@ -2444,9 +2502,15 @@
       selectLines.forEach((l, i) => lines.push((i === 0 ? "     " : "    ,") + l));
       lines.push(`from ${tableName}${tableInput ? "" : "   -- 请替换为实际表名"}`);
       lateral.forEach((l) => lines.push(l));
-      const d = new Date(Date.now() - 86400000);
-      const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      lines.push(`-- where dt = '${ymd}'   -- 按需补充分区条件`);
+      const partCol = $("jsonPartCol").value.trim();
+      const partDate = $("jsonPartDate").value;
+      if (partCol && partDate) {
+        lines.push(`where ${partCol} = '${partDate}'`);
+      } else {
+        const d = new Date(Date.now() - 86400000);
+        const ymd = partDate || `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        lines.push(`-- where ${partCol || "dt"} = '${ymd}'   -- 按需补充分区条件`);
+      }
       lines.push(";");
 
       jsonSqlOutput.textContent = lines.join("\n");
@@ -2458,15 +2522,56 @@
       clearTimeout(jsonParseTimer);
       jsonParseTimer = setTimeout(parseJsonInput, 200);
     });
-    ["jsonField", "jsonTable", "jsonExtraCols"].forEach((id) => $(id).addEventListener("input", generateHiveSql));
-    ["jsonMode", "jsonArrayMode", "jsonAliasMode", "jsonCast"].forEach((id) => $(id).addEventListener("change", generateHiveSql));
+    // Remember JSON-to-SQL settings in this browser so they survive a refresh.
+    const JSON_PREF_KEY = "dqf-json-settings";
+    const JSON_PREF_IDS = ["jsonField", "jsonEngine", "jsonTable", "jsonExtraCols", "jsonPartCol", "jsonMode", "jsonArrayMode", "jsonAliasMode", "jsonCast"];
+    function saveJsonPrefs() {
+      const prefs = {};
+      JSON_PREF_IDS.forEach((id) => {
+        const el = $(id);
+        prefs[id] = el.type === "checkbox" ? el.checked : el.value;
+      });
+      try { localStorage.setItem(JSON_PREF_KEY, JSON.stringify(prefs)); } catch {}
+    }
+    function loadJsonPrefs() {
+      let prefs = null;
+      try { prefs = JSON.parse(localStorage.getItem(JSON_PREF_KEY) || "null"); } catch {}
+      if (!prefs || typeof prefs !== "object") return;
+      JSON_PREF_IDS.forEach((id) => {
+        if (!(id in prefs)) return;
+        const el = $(id);
+        if (el.type === "checkbox") el.checked = !!prefs[id];
+        else if (el.tagName === "SELECT") {
+          if ([...el.options].some((o) => o.value === prefs[id])) el.value = prefs[id];
+        } else el.value = String(prefs[id] ?? "");
+      });
+    }
+
+    ["jsonField", "jsonTable", "jsonExtraCols", "jsonPartCol"].forEach((id) => $(id).addEventListener("input", () => {
+      saveJsonPrefs();
+      generateHiveSql();
+    }));
+    ["jsonMode", "jsonArrayMode", "jsonAliasMode", "jsonCast"].forEach((id) => $(id).addEventListener("change", () => {
+      saveJsonPrefs();
+      generateHiveSql();
+    }));
+    $("jsonPartDate").addEventListener("input", generateHiveSql);
     function applyJsonEngine() {
       const isCk = $("jsonEngine").value === "ck";
       $("jsonModeGroup").hidden = isCk;
       $("jsonSqlTitle").textContent = isCk ? "ClickHouse SQL" : "Hive SQL";
       generateHiveSql();
     }
-    $("jsonEngine").addEventListener("change", applyJsonEngine);
+    $("jsonEngine").addEventListener("change", () => {
+      saveJsonPrefs();
+      applyJsonEngine();
+    });
+    loadJsonPrefs();
+    {
+      const d = new Date(Date.now() - 86400000);
+      $("jsonPartDate").value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+    applyJsonEngine();
 
     jsonTree.addEventListener("change", (e) => {
       const idx = e.target.dataset && e.target.dataset.idx;
@@ -2477,6 +2582,23 @@
       else jsonSelected.delete(row.id);
       updateJsonSelStats();
       generateHiveSql();
+    });
+
+    // Toggles leaf fields only, within the current search/type filter.
+    $("btnJsonInvert").addEventListener("click", () => {
+      if (!jsonRows.length) return;
+      visibleJsonRowIdx().forEach((i) => {
+        const r = jsonRows[i];
+        if (!r.leaf) return;
+        if (jsonSelected.has(r.id)) jsonSelected.delete(r.id);
+        else jsonSelected.add(r.id);
+      });
+      renderJsonTree();
+      updateJsonSelStats();
+      generateHiveSql();
+    });
+    $("jsonTypeFilter").addEventListener("change", () => {
+      if (jsonRows.length) renderJsonTree();
     });
 
     $("btnJsonSelectLeaves").addEventListener("click", () => {
