@@ -2130,8 +2130,7 @@
       jsonRows = flattenJsonRows(jsonRoot);
 
       const ids = new Set(jsonRows.map((r) => r.id));
-      const kept = new Set([...jsonSelected].filter((id) => ids.has(id)));
-      jsonSelected = kept.size ? kept : new Set(jsonRows.filter((r) => r.leaf).map((r) => r.id));
+      jsonSelected = new Set([...jsonSelected].filter((id) => ids.has(id)));
 
       renderJsonTree();
       updateJsonSelStats();
