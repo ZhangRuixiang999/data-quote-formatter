@@ -780,8 +780,8 @@
       <div class="opt-group">
         <label for="joinStyle">项间连接</label>
         <select id="joinStyle">
+          <option value="comma" selected>逗号 'a','b'</option>
           <option value="pipe">竖线 'a|b'</option>
-          <option value="comma">逗号 'a','b'</option>
         </select>
       </div>
       <div class="opt-group" style="display:flex;align-items:flex-end;">
@@ -1339,7 +1339,7 @@
       $("dedupe").checked = true;
       $("skipHeader").defaultChecked = false;
       $("skipHeader").checked = false;
-      $("joinStyle").value = "pipe";
+      $("joinStyle").value = "comma";
       $("useParen").defaultChecked = true;
       $("useParen").checked = true;
       $("useIn").defaultChecked = false;
