@@ -668,6 +668,43 @@
       color: var(--muted);
     }
     .json-hint.error { color: var(--warning); }
+    .field-search {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.55rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .field-search svg { width: 0.95rem; height: 0.95rem; color: var(--placeholder); flex-shrink: 0; }
+    .field-search input {
+      flex: 1;
+      min-width: 0;
+      border: none;
+      outline: none;
+      background: transparent;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.82rem;
+      padding: 0.15rem 0;
+    }
+    .field-search input::placeholder { color: var(--placeholder); }
+    .field-search input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+    .field-search .search-clear {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.4rem;
+      height: 1.4rem;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 0;
+    }
+    .field-search .search-clear:hover { background: var(--surface-hover); color: var(--text); }
+    .field-search .search-clear[hidden] { display: none; }
+    .field-key mark { background: var(--accent-soft); color: var(--accent); border-radius: 2px; padding: 0; }
     .json-sql-panel { margin-top: 1.25rem; min-height: 0; }
     .json-sql-panel .output-box { min-height: 180px; word-break: normal; overflow-x: auto; white-space: pre; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.8rem; }
   </style>
@@ -871,15 +908,15 @@
     <div id="panelJson" class="tool-panel">
       <div class="options json-options" autocomplete="off">
         <div class="opt-group">
+          <label for="jsonField">JSON 字段名 <span class="req">*必填</span></label>
+          <input type="text" id="jsonField" placeholder="如 ext_info" spellcheck="false" />
+        </div>
+        <div class="opt-group">
           <label for="jsonEngine">输出格式</label>
           <select id="jsonEngine">
             <option value="hive">Hive</option>
             <option value="ck">ClickHouse</option>
           </select>
-        </div>
-        <div class="opt-group">
-          <label for="jsonField">JSON 字段名 <span class="req">*必填</span></label>
-          <input type="text" id="jsonField" placeholder="如 ext_info" spellcheck="false" />
         </div>
         <div class="opt-group">
           <label for="jsonTable">表名 <span class="opt">选填</span></label>
@@ -946,6 +983,13 @@
             </div>
           </div>
           <div class="panel-body">
+            <div class="field-search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <input type="search" id="jsonFieldSearch" placeholder="搜索字段名或路径" spellcheck="false" autocomplete="off" aria-label="搜索字段" />
+              <button type="button" class="search-clear" id="btnJsonSearchClear" title="清除搜索" aria-label="清除搜索" hidden>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+              </button>
+            </div>
             <div class="field-tree" id="jsonTree">
               <div class="json-hint">在左侧粘贴 JSON 后，这里会列出所有字段，勾选想要的内容即可</div>
             </div>
@@ -1992,17 +2036,64 @@
       return s.length > 60 ? s.slice(0, 60) + "…" : s;
     }
 
+    function highlightText(text, q) {
+      if (!q) return escapeHtml(text);
+      const lower = text.toLowerCase();
+      let out = "";
+      let pos = 0;
+      let hit = lower.indexOf(q);
+      while (hit !== -1) {
+        out += escapeHtml(text.slice(pos, hit)) + "<mark>" + escapeHtml(text.slice(hit, hit + q.length)) + "</mark>";
+        pos = hit + q.length;
+        hit = lower.indexOf(q, pos);
+      }
+      return out + escapeHtml(text.slice(pos));
+    }
+
+    function jsonSearchQuery() {
+      return $("jsonFieldSearch").value.trim().toLowerCase();
+    }
+
+    // Indices of rows to show for the current search: matches plus their ancestors for context.
+    function visibleJsonRowIdx() {
+      const q = jsonSearchQuery();
+      if (!q) return jsonRows.map((_, i) => i);
+      const show = new Set();
+      jsonRows.forEach((r, i) => {
+        const label = String(r.node.label).toLowerCase();
+        const path = readablePath(r.node.segs).toLowerCase();
+        if (!label.includes(q) && !path.includes(q)) return;
+        show.add(i);
+        let depth = r.depth;
+        for (let j = i - 1; j >= 0 && depth > 0; j--) {
+          if (jsonRows[j].depth < depth) {
+            show.add(j);
+            depth = jsonRows[j].depth;
+          }
+        }
+      });
+      return [...show].sort((a, b) => a - b);
+    }
+
     function renderJsonTree(message, isError) {
+      $("btnJsonSearchClear").hidden = !$("jsonFieldSearch").value;
       if (message) {
         jsonTree.innerHTML = `<div class="json-hint${isError ? " error" : ""}">${escapeHtml(message)}</div>`;
         return;
       }
-      jsonTree.innerHTML = jsonRows.map((r, i) => {
+      const q = jsonSearchQuery();
+      const visible = visibleJsonRowIdx();
+      if (!visible.length) {
+        jsonTree.innerHTML = `<div class="json-hint">没有匹配“${escapeHtml($("jsonFieldSearch").value.trim())}”的字段</div>`;
+        return;
+      }
+      jsonTree.innerHTML = visible.map((i) => {
+        const r = jsonRows[i];
         const n = r.node;
         const info = jsonTypeInfo(n);
         return `<label class="field-row" style="padding-left:${1 + r.depth * 1.2}rem" title="${escapeHtml(readablePath(n.segs))}">`
           + `<input type="checkbox" data-idx="${i}"${jsonSelected.has(r.id) ? " checked" : ""} />`
-          + `<span class="field-key${n.isElem ? " elem" : ""}">${escapeHtml(n.label)}</span>`
+          + `<span class="field-key${n.isElem ? " elem" : ""}">${highlightText(String(n.label), q)}</span>`
           + `<span class="type-badge t-${info.cls}">${escapeHtml(info.text)}</span>`
           + `<span class="field-sample">${escapeHtml(jsonSampleText(n))}</span>`
           + `</label>`;
@@ -2390,10 +2481,26 @@
     });
 
     $("btnJsonSelectLeaves").addEventListener("click", () => {
-      jsonSelected = new Set(jsonRows.filter((r) => r.leaf).map((r) => r.id));
+      if (jsonSearchQuery()) {
+        visibleJsonRowIdx().forEach((i) => {
+          if (jsonRows[i].leaf) jsonSelected.add(jsonRows[i].id);
+        });
+      } else {
+        jsonSelected = new Set(jsonRows.filter((r) => r.leaf).map((r) => r.id));
+      }
       if (jsonRows.length) renderJsonTree();
       updateJsonSelStats();
       generateHiveSql();
+    });
+    $("jsonFieldSearch").addEventListener("input", () => {
+      if (jsonRows.length) renderJsonTree();
+      else $("btnJsonSearchClear").hidden = !$("jsonFieldSearch").value;
+    });
+    $("btnJsonSearchClear").addEventListener("click", () => {
+      $("jsonFieldSearch").value = "";
+      if (jsonRows.length) renderJsonTree();
+      else $("btnJsonSearchClear").hidden = true;
+      $("jsonFieldSearch").focus();
     });
     $("btnJsonSelectNone").addEventListener("click", () => {
       jsonSelected = new Set();
