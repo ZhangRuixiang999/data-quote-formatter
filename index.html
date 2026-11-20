@@ -731,6 +731,34 @@
     }
     .field-key mark { background: var(--accent-soft); color: var(--accent); border-radius: 2px; padding: 0; }
     .json-sql-panel { margin-top: 1.25rem; min-height: 0; }
+
+    /* ── 时间戳转换 ── */
+    .ts-table-wrap { flex: 1; overflow: auto; max-height: 420px; }
+    .ts-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .ts-table th, .ts-table td {
+      text-align: left;
+      padding: 0.45rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .ts-table th { color: var(--muted); font-weight: 600; font-size: 0.75rem; position: sticky; top: 0; background: var(--surface); }
+    .ts-table td { font-family: var(--mono); }
+    .ts-table td.ts-main { color: var(--positive); font-weight: 600; }
+    .ts-table td.ts-err { color: var(--warning); font-family: inherit; }
+    .ts-unit { font-family: inherit; font-size: 0.7rem; color: var(--muted); border: 1px solid var(--border); border-radius: 4px; padding: 0.05rem 0.35rem; }
+    .ts-now {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .ts-now code { font-family: var(--mono); color: var(--text); }
+    .ts-sql-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-top: 1.25rem; }
+    @media (max-width: 800px) { .ts-sql-grid { grid-template-columns: 1fr; } }
+    .ts-sql-grid .panel { min-height: 0; }
+    .ts-sql-grid .output-box { min-height: 0; white-space: pre; overflow-x: auto; word-break: normal; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.78rem; line-height: 1.6; }
     .json-sql-panel .output-box { min-height: 180px; word-break: normal; overflow-x: auto; white-space: pre; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.8rem; }
   </style>
 </head>
@@ -756,6 +784,7 @@
       <button type="button" class="tool-tab active" data-tab="quote" role="tab" aria-selected="true">数据格式修改</button>
       <button type="button" class="tool-tab" data-tab="csv2xlsx" role="tab" aria-selected="false">CSV 转 Excel</button>
       <button type="button" class="tool-tab" data-tab="json2hive" role="tab" aria-selected="false">JSON 转 SQL</button>
+      <button type="button" class="tool-tab" data-tab="timestamp" role="tab" aria-selected="false">时间戳转换</button>
     </nav>
 
     <div id="panelQuote" class="tool-panel active">
@@ -1054,6 +1083,92 @@
           <div class="output-box empty" id="jsonSqlOutput">勾选字段后，这里会生成 Hive SQL…</div>
         </div>
       </section>
+    </div>
+
+    <div id="panelTs" class="tool-panel">
+      <div class="options" autocomplete="off" style="margin-top:0;margin-bottom:1.25rem;">
+        <div class="opt-group">
+          <label for="tsUnit">时间戳单位</label>
+          <select id="tsUnit">
+            <option value="auto">自动识别（10 位秒 / 13 位毫秒）</option>
+            <option value="s">秒</option>
+            <option value="ms">毫秒</option>
+          </select>
+        </div>
+        <div class="opt-group">
+          <label for="tsZone">时区</label>
+          <select id="tsZone">
+            <option value="8">北京时间（UTC+8）</option>
+            <option value="0">UTC（UTC+0）</option>
+          </select>
+        </div>
+        <div class="opt-group">
+          <label for="tsSqlField">SQL 字段名 <span class="opt">选填</span></label>
+          <input type="text" id="tsSqlField" value="date" placeholder="如 create_time" spellcheck="false" />
+        </div>
+        <div class="opt-group" style="display:flex;align-items:flex-end;">
+          <div class="ts-now">当前时间戳 <code id="tsNowValue">-</code>
+            <button type="button" class="btn" id="btnTsNow">填入</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid">
+        <section class="panel">
+          <div class="panel-head">
+            <h2 class="panel-title">输入</h2>
+            <div class="panel-actions">
+              <button type="button" class="btn" id="btnTsDemo">示例</button>
+              <button type="button" class="btn" id="btnTsClear">清空</button>
+            </div>
+          </div>
+          <div class="panel-body">
+            <textarea id="tsInput" spellcheck="false" placeholder="每行一个，可混合输入：&#10;1783180359&#10;1783180359000&#10;2026-07-04 23:52:39&#10;2026-07-04"></textarea>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div class="panel-title-group">
+              <h2 class="panel-title">转换结果</h2>
+              <span class="panel-stats" id="tsStats" hidden>共 <span class="num" id="tsCount">0</span> 条</span>
+            </div>
+            <div class="panel-actions">
+              <button type="button" class="btn btn-success" id="btnTsCopy">复制结果</button>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="ts-table-wrap" id="tsResult">
+              <div class="json-hint">在左侧输入时间戳或日期时间，这里会显示对应的时间和时间戳</div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="ts-sql-grid">
+        <section class="panel">
+          <div class="panel-head">
+            <h2 class="panel-title">时间戳 → 日期（SQL）</h2>
+            <div class="panel-actions">
+              <button type="button" class="btn btn-success" data-copy="tsSqlToDate">复制</button>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="output-box" id="tsSqlToDate"></div>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="panel-head">
+            <h2 class="panel-title">日期 → 时间戳（SQL）</h2>
+            <div class="panel-actions">
+              <button type="button" class="btn btn-success" data-copy="tsSqlToTs">复制</button>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="output-box" id="tsSqlToTs"></div>
+          </div>
+        </section>
+      </div>
     </div>
   </div>
 
@@ -1568,6 +1683,10 @@
         desc: "填写 JSON 字段名并粘贴一条样例，勾选想要的内容，自动生成 Hive / ClickHouse 解析 SQL",
         example: "示例：<code>{\"user\":{\"name\":\"a\"}}</code> → Hive <code>get_json_object(ext_info, '$.user.name')</code> / CK <code>JSONExtractString(ext_info, 'user', 'name')</code>",
       },
+      timestamp: {
+        desc: "时间戳与日期时间双向转换，支持批量输入，并给出 Hive / ClickHouse 转换 SQL",
+        example: "示例：<code>1783180359</code> → 北京时间 <code>2026-07-04 23:52:39</code>",
+      },
     };
 
     document.querySelectorAll(".tool-tab").forEach((tab) => {
@@ -1581,6 +1700,7 @@
         $("panelQuote").classList.toggle("active", name === "quote");
         $("panelCsv").classList.toggle("active", name === "csv2xlsx");
         $("panelJson").classList.toggle("active", name === "json2hive");
+        $("panelTs").classList.toggle("active", name === "timestamp");
         const meta = TAB_META[name];
         $("headerDesc").innerHTML = meta.desc;
         $("headerExample").innerHTML = meta.example;
@@ -2661,6 +2781,187 @@
         showToast("复制失败，请手动选择复制");
       }
     });
+
+    // ── 时间戳转换 ──
+    const tsInput = $("tsInput");
+    let tsRows = [];
+
+    // Formats an epoch-millisecond value as wall-clock time in a fixed UTC offset, independent of the browser's time zone.
+    function formatInZone(ms, offsetHours) {
+      const d = new Date(ms + offsetHours * 3600000);
+      return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(d.getUTCSeconds())}`;
+    }
+
+    function parseDateTimeInZone(str, offsetHours) {
+      const m = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?)?$/);
+      if (!m) return null;
+      const y = +m[1], mo = +m[2], d = +m[3];
+      const H = +(m[4] || 0), M = +(m[5] || 0), S = +(m[6] || 0);
+      const msPart = m[7] ? +m[7].padEnd(3, "0") : 0;
+      if (!isValidYmd(y, mo, d) || H > 23 || M > 59 || S > 59) return null;
+      return Date.UTC(y, mo - 1, d, H, M, S, msPart) - offsetHours * 3600000;
+    }
+
+    function convertTsLine(line, unit, zone) {
+      const s = line.trim();
+      if (/^-?\d+(\.\d+)?$/.test(s)) {
+        const n = Number(s);
+        const digits = s.replace(/^-/, "").split(".")[0].length;
+        let u = unit;
+        if (u === "auto") {
+          if (digits <= 11) u = "s";
+          else if (digits <= 14) u = "ms";
+          else return { input: s, error: "位数不对，请确认是秒（10 位）还是毫秒（13 位）" };
+        }
+        const ms = u === "s" ? n * 1000 : n;
+        if (!Number.isFinite(ms) || Math.abs(ms) > 8.64e15) return { input: s, error: "超出可转换范围" };
+        return { input: s, kind: u === "s" ? "秒" : "毫秒", main: formatInZone(ms, zone), date: formatInZone(ms, zone).slice(0, 10), sec: String(Math.floor(ms / 1000)), msVal: String(Math.round(ms)) };
+      }
+      const ms = parseDateTimeInZone(s, zone);
+      if (ms == null) return { input: s, error: "无法识别，支持时间戳或 yyyy-MM-dd HH:mm:ss" };
+      return { input: s, kind: "日期", main: formatInZone(ms, zone), date: formatInZone(ms, zone).slice(0, 10), sec: String(Math.floor(ms / 1000)), msVal: String(ms) };
+    }
+
+    function renderTsResult() {
+      const zone = +$("tsZone").value;
+      const unit = $("tsUnit").value;
+      const lines = tsInput.value.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      tsRows = lines.slice(0, 2000).map((l) => convertTsLine(l, unit, zone));
+      $("tsCount").textContent = tsRows.length;
+      $("tsStats").hidden = tsRows.length === 0;
+      if (!tsRows.length) {
+        $("tsResult").innerHTML = `<div class="json-hint">在左侧输入时间戳或日期时间，这里会显示对应的时间和时间戳</div>`;
+        return;
+      }
+      const zoneLabel = zone === 8 ? "北京时间" : "UTC 时间";
+      let html = `<table class="ts-table"><thead><tr><th>输入</th><th>${zoneLabel}</th><th>日期</th><th>秒级时间戳</th><th>毫秒级时间戳</th></tr></thead><tbody>`;
+      tsRows.forEach((r) => {
+        if (r.error) {
+          html += `<tr><td>${escapeHtml(r.input)}</td><td class="ts-err" colspan="4">${escapeHtml(r.error)}</td></tr>`;
+        } else {
+          html += `<tr><td>${escapeHtml(r.input)} <span class="ts-unit">${r.kind}</span></td><td class="ts-main">${r.main}</td><td>${r.date}</td><td>${r.sec}</td><td>${r.msVal}</td></tr>`;
+        }
+      });
+      html += "</tbody></table>";
+      $("tsResult").innerHTML = html;
+    }
+
+    function renderTsSql() {
+      const zone = +$("tsZone").value;
+      const rawField = $("tsSqlField").value.trim();
+      // Reserved words such as `date` must be quoted to be usable as column names.
+      const field = rawField && /^[A-Za-z_][A-Za-z0-9_]*$/.test(rawField) && HIVE_RESERVED.has(rawField.toLowerCase())
+        ? "`" + rawField + "`"
+        : rawField;
+      const first = tsRows.find((r) => !r.error);
+      const sec = first ? first.sec : "1783180359";
+      const msVal = first ? first.msVal : sec + "000";
+      const dt = first ? first.main : formatInZone(+sec * 1000, zone);
+      const tsCol = field || sec;
+      const tsMsCol = field || msVal;
+      const dtCol = field || `'${dt}'`;
+      const dateCol = field || `'${dt.slice(0, 10)}'`;
+      const isBj = zone === 8;
+      const zoneName = isBj ? "Asia/Shanghai" : "UTC";
+      const noteHive = isBj
+        ? "-- Hive 按集群时区换算，以下默认集群为北京时间"
+        : "-- Hive 按集群时区换算，以下默认集群为北京时间，用 to_utc_timestamp 转成 UTC";
+
+      const toDate = [
+        `-- 示例：${sec} → ${dt}${field ? "" : "（填写上方字段名可替换为列名）"}`,
+        "",
+        "-- ===== Hive / Spark SQL =====",
+        noteHive,
+        ...(isBj ? [
+          `from_unixtime(${tsCol}, 'yyyy-MM-dd')            -- 秒 → ${dt.slice(0, 10)}`,
+          `from_unixtime(${tsCol}, 'yyyy-MM-dd HH:mm:ss')   -- 秒 → ${dt}`,
+          `from_unixtime(cast(${tsMsCol} / 1000 as bigint), 'yyyy-MM-dd HH:mm:ss')   -- 毫秒`,
+          `-- 若集群是 UTC：date_format(from_utc_timestamp(from_unixtime(${tsCol}), 'Asia/Shanghai'), 'yyyy-MM-dd')`,
+        ] : [
+          `date_format(to_utc_timestamp(from_unixtime(${tsCol}), 'Asia/Shanghai'), 'yyyy-MM-dd')            -- 秒 → ${dt.slice(0, 10)}`,
+          `date_format(to_utc_timestamp(from_unixtime(${tsCol}), 'Asia/Shanghai'), 'yyyy-MM-dd HH:mm:ss')   -- 秒 → ${dt}`,
+        ]),
+        "",
+        "-- ===== ClickHouse =====",
+        `formatDateTime(toDateTime(${tsCol}, '${zoneName}'), '%Y-%m-%d')            -- 秒 → ${dt.slice(0, 10)}`,
+        `formatDateTime(toDateTime(${tsCol}, '${zoneName}'), '%Y-%m-%d %H:%i:%S')   -- 秒 → ${dt}`,
+        `toDate(toDateTime(${tsCol}, '${zoneName}'))                               -- 返回 Date 类型`,
+        `formatDateTime(toDateTime(intDiv(${tsMsCol}, 1000), '${zoneName}'), '%Y-%m-%d %H:%i:%S')   -- 毫秒`,
+      ];
+      const toTs = [
+        `-- 示例：${dt} → ${sec}${field ? "" : "（填写上方字段名可替换为列名）"}`,
+        "",
+        "-- ===== Hive / Spark SQL =====",
+        noteHive,
+        ...(isBj ? [
+          `unix_timestamp(${dtCol}, 'yyyy-MM-dd HH:mm:ss')        -- 日期时间 → 秒 ${sec}`,
+          `unix_timestamp(${dateCol}, 'yyyy-MM-dd')                 -- 日期 → 当天 0 点的秒`,
+          `unix_timestamp(${dtCol}, 'yyyy-MM-dd HH:mm:ss') * 1000 -- 日期时间 → 毫秒`,
+        ] : [
+          `unix_timestamp(from_utc_timestamp(${dtCol}, 'Asia/Shanghai'), 'yyyy-MM-dd HH:mm:ss')   -- UTC 日期时间 → 秒 ${sec}`,
+        ]),
+        "",
+        "-- ===== ClickHouse =====",
+        `toUnixTimestamp(toDateTime(${dtCol}, '${zoneName}'))                 -- 日期时间 → 秒 ${sec}`,
+        `toUnixTimestamp(toDateTime(toDate(${dateCol}), '${zoneName}'))       -- 日期 → 当天 0 点的秒`,
+        `toUnixTimestamp64Milli(toDateTime64(${dtCol}, 3, '${zoneName}'))     -- 日期时间 → 毫秒`,
+      ];
+      $("tsSqlToDate").textContent = toDate.join("\n");
+      $("tsSqlToTs").textContent = toTs.join("\n");
+    }
+
+    function refreshTs() {
+      renderTsResult();
+      renderTsSql();
+    }
+
+    function tickTsNow() {
+      $("tsNowValue").textContent = Math.floor(Date.now() / 1000);
+    }
+    tickTsNow();
+    setInterval(tickTsNow, 1000);
+
+    tsInput.addEventListener("input", refreshTs);
+    ["tsUnit", "tsZone"].forEach((id) => $(id).addEventListener("change", refreshTs));
+    $("tsSqlField").addEventListener("input", renderTsSql);
+    $("btnTsNow").addEventListener("click", () => {
+      const now = String(Math.floor(Date.now() / 1000));
+      tsInput.value = tsInput.value.trim() ? tsInput.value.replace(/\s*$/, "\n") + now : now;
+      refreshTs();
+    });
+    $("btnTsDemo").addEventListener("click", () => {
+      tsInput.value = "1783180359\n1783180359000\n2026-07-04 23:52:39\n2026-07-04";
+      refreshTs();
+    });
+    $("btnTsClear").addEventListener("click", () => {
+      tsInput.value = "";
+      refreshTs();
+    });
+    $("btnTsCopy").addEventListener("click", async () => {
+      const ok = tsRows.filter((r) => !r.error);
+      if (!ok.length) {
+        showToast("没有可复制的结果");
+        return;
+      }
+      const text = ["输入\t时间\t日期\t秒级时间戳\t毫秒级时间戳", ...tsRows.map((r) => r.error ? `${r.input}\t${r.error}` : [r.input, r.main, r.date, r.sec, r.msVal].join("\t"))].join("\n");
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast("已复制，可直接粘贴到 Excel");
+      } catch {
+        showToast("复制失败，请手动选择复制");
+      }
+    });
+    document.querySelectorAll("#panelTs [data-copy]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText($(btn.dataset.copy).textContent);
+          showToast("SQL 已复制到剪贴板");
+        } catch {
+          showToast("复制失败，请手动选择复制");
+        }
+      });
+    });
+    refreshTs();
   </script>
 </body>
 </html>
