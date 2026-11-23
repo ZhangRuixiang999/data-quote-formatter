@@ -759,6 +759,20 @@
     @media (max-width: 800px) { .ts-sql-grid { grid-template-columns: 1fr; } }
     .ts-sql-grid .panel { min-height: 0; }
     .ts-sql-grid .output-box { min-height: 0; white-space: pre; overflow-x: auto; word-break: normal; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.78rem; line-height: 1.6; }
+
+    /* ── URL 参数解析 ── */
+    .url-table td { font-family: var(--mono); white-space: normal; word-break: break-all; vertical-align: top; }
+    .url-table td.url-key { color: var(--accent); white-space: nowrap; word-break: normal; }
+    .url-table td.url-dup { color: var(--warning); }
+    .url-table th.url-row-no, .url-table td.url-row-no { width: 2.5rem; color: var(--muted); white-space: nowrap; }
+    .url-table td.url-err { color: var(--warning); font-family: inherit; }
+    .url-table td.url-empty { color: var(--placeholder); }
+    .url-meta { padding: 0.6rem 1rem; border-bottom: 1px solid var(--border); font-size: 0.78rem; color: var(--muted); display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; }
+    .url-meta code { font-family: var(--mono); color: var(--text); word-break: break-all; }
+    .url-codec { margin-top: 1.25rem; }
+    .url-codec .panel-body { padding: 0.85rem 1rem; gap: 0.75rem; }
+    .url-codec textarea { min-height: 90px; border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 0.75rem; flex: none; }
+    .url-codec-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
     .json-sql-panel .output-box { min-height: 180px; word-break: normal; overflow-x: auto; white-space: pre; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.8rem; }
   </style>
 </head>
@@ -785,6 +799,7 @@
       <button type="button" class="tool-tab" data-tab="csv2xlsx" role="tab" aria-selected="false">CSV 转 Excel</button>
       <button type="button" class="tool-tab" data-tab="json2hive" role="tab" aria-selected="false">JSON 转 SQL</button>
       <button type="button" class="tool-tab" data-tab="timestamp" role="tab" aria-selected="false">时间戳转换</button>
+      <button type="button" class="tool-tab" data-tab="url" role="tab" aria-selected="false">URL 参数解析</button>
     </nav>
 
     <div id="panelQuote" class="tool-panel active">
@@ -1169,6 +1184,62 @@
           </div>
         </section>
       </div>
+    </div>
+
+    <div id="panelUrl" class="tool-panel">
+      <div class="grid">
+        <section class="panel">
+          <div class="panel-head">
+            <h2 class="panel-title">输入链接</h2>
+            <div class="panel-actions">
+              <button type="button" class="btn" id="btnUrlDemo">示例</button>
+              <button type="button" class="btn" id="btnUrlClear">清空</button>
+            </div>
+          </div>
+          <div class="panel-body">
+            <textarea id="urlInput" spellcheck="false" placeholder="每行一条链接，也可以只贴参数部分：&#10;https://www.example.com/p/123?utm_source=wechat&amp;keyword=%E6%89%AB%E5%9C%B0%E6%9C%BA%E5%99%A8%E4%BA%BA&#10;utm_source=app&amp;page=2"></textarea>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div class="panel-title-group">
+              <h2 class="panel-title">解析结果</h2>
+              <span class="panel-stats" id="urlStats" hidden><span class="num" id="urlCount">0</span> 条链接 · <span class="num" id="urlParamCount">0</span> 个参数</span>
+            </div>
+            <div class="panel-actions">
+              <button type="button" class="btn btn-success" id="btnUrlCopy">复制结果</button>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="field-search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <input type="search" id="urlParamFilter" placeholder="只看这些参数，逗号分隔，如 utm_source, keyword" spellcheck="false" autocomplete="off" aria-label="筛选参数" />
+            </div>
+            <div id="urlMeta"></div>
+            <div class="ts-table-wrap" id="urlResult">
+              <div class="json-hint">在左侧粘贴链接，这里会把参数拆成表格，中文编码会自动还原</div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <section class="panel url-codec">
+        <div class="panel-head">
+          <h2 class="panel-title">编码 / 解码</h2>
+          <div class="panel-actions">
+            <button type="button" class="btn btn-success" id="btnCodecCopy">复制结果</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <textarea id="codecInput" spellcheck="false" placeholder="输入要编码或解码的文字，如 扫地机器人 或 %E6%89%AB%E5%9C%B0%E6%9C%BA%E5%99%A8%E4%BA%BA"></textarea>
+          <div class="url-codec-actions">
+            <button type="button" class="btn" id="btnEncode">编码</button>
+            <button type="button" class="btn" id="btnDecode">解码</button>
+          </div>
+          <div class="output-box empty" id="codecOutput" style="min-height:0;">结果会显示在这里…</div>
+        </div>
+      </section>
     </div>
   </div>
 
@@ -1687,6 +1758,10 @@
         desc: "时间戳与日期时间双向转换，支持批量输入，并给出 Hive / ClickHouse 转换 SQL",
         example: "示例：<code>1783180359</code> → 北京时间 <code>2026-07-04 23:52:39</code>",
       },
+      url: {
+        desc: "粘贴一条或多条链接，把参数拆成表格，自动还原中文编码",
+        example: "示例：<code>?keyword=%E6%89%AB%E5%9C%B0%E6%9C%BA%E5%99%A8%E4%BA%BA</code> → keyword = <code>扫地机器人</code>",
+      },
     };
 
     document.querySelectorAll(".tool-tab").forEach((tab) => {
@@ -1701,6 +1776,7 @@
         $("panelCsv").classList.toggle("active", name === "csv2xlsx");
         $("panelJson").classList.toggle("active", name === "json2hive");
         $("panelTs").classList.toggle("active", name === "timestamp");
+        $("panelUrl").classList.toggle("active", name === "url");
         const meta = TAB_META[name];
         $("headerDesc").innerHTML = meta.desc;
         $("headerExample").innerHTML = meta.example;
@@ -2962,6 +3038,211 @@
       });
     });
     refreshTs();
+
+    // ── URL 参数解析 ──
+    const urlInput = $("urlInput");
+    let urlParsed = [];
+
+    // Decodes percent-encoding; treats "+" as a space (form encoding) and unwraps double-encoded values.
+    function decodeUrlPart(s) {
+      let cur = String(s).replace(/\+/g, " ");
+      for (let i = 0; i < 3; i++) {
+        if (!/%[0-9A-Fa-f]{2}/.test(cur)) break;
+        let next;
+        try {
+          next = decodeURIComponent(cur);
+        } catch {
+          next = cur.replace(/(%[0-9A-Fa-f]{2})+/g, (m) => {
+            try { return decodeURIComponent(m); } catch { return m; }
+          });
+        }
+        if (next === cur) break;
+        cur = next;
+      }
+      return cur;
+    }
+
+    function parseQueryString(qs) {
+      return qs.split("&").filter(Boolean).map((pair) => {
+        const i = pair.indexOf("=");
+        const rawKey = i === -1 ? pair : pair.slice(0, i);
+        const rawVal = i === -1 ? "" : pair.slice(i + 1);
+        return { key: decodeUrlPart(rawKey), value: decodeUrlPart(rawVal), raw: rawVal };
+      });
+    }
+
+    function parseUrlLine(line) {
+      const s = line.trim();
+      let base = "";
+      let query = "";
+      let hash = "";
+      const hashIdx = s.indexOf("#");
+      const main = hashIdx === -1 ? s : s.slice(0, hashIdx);
+      if (hashIdx !== -1) hash = s.slice(hashIdx + 1);
+      const qIdx = main.indexOf("?");
+      if (qIdx !== -1) {
+        base = main.slice(0, qIdx);
+        query = main.slice(qIdx + 1);
+      } else if (/^[a-z][a-z0-9+.-]*:\/\//i.test(main) || main.startsWith("/")) {
+        base = main;
+      } else {
+        query = main;
+      }
+      const params = parseQueryString(query);
+      // Single-page apps often keep their query inside the hash, e.g. #/detail?id=1.
+      let hashParams = [];
+      const hq = hash.indexOf("?");
+      if (hq !== -1) hashParams = parseQueryString(hash.slice(hq + 1));
+      else if (hash.includes("=")) hashParams = parseQueryString(hash);
+      const all = params.concat(hashParams.map((p) => ({ ...p, inHash: true })));
+      let host = "";
+      let path = base;
+      const m = base.match(/^([a-z][a-z0-9+.-]*:\/\/[^/]+)(.*)$/i);
+      if (m) {
+        host = m[1];
+        path = m[2] || "/";
+      }
+      return { input: s, host, path: decodeUrlPart(path), hash: decodeUrlPart(hash), params: all };
+    }
+
+    function urlFilterKeys() {
+      return $("urlParamFilter").value.split(/[,，\s]+/).map((k) => k.trim()).filter(Boolean);
+    }
+
+    // Column order for multi-link view: first appearance across all links.
+    function urlColumnKeys() {
+      const wanted = urlFilterKeys();
+      if (wanted.length) return wanted;
+      const keys = [];
+      urlParsed.forEach((u) => u.params.forEach((p) => {
+        if (!keys.includes(p.key)) keys.push(p.key);
+      }));
+      return keys;
+    }
+
+    function urlValuesFor(u, key) {
+      return u.params.filter((p) => p.key === key).map((p) => p.value);
+    }
+
+    function renderUrlResult() {
+      const lines = urlInput.value.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).slice(0, 1000);
+      urlParsed = lines.map(parseUrlLine);
+      const total = urlParsed.reduce((n, u) => n + u.params.length, 0);
+      $("urlCount").textContent = urlParsed.length;
+      $("urlParamCount").textContent = total;
+      $("urlStats").hidden = urlParsed.length === 0;
+      $("urlMeta").innerHTML = "";
+
+      if (!urlParsed.length) {
+        $("urlResult").innerHTML = `<div class="json-hint">在左侧粘贴链接，这里会把参数拆成表格，中文编码会自动还原</div>`;
+        return;
+      }
+
+      const wanted = urlFilterKeys();
+      if (urlParsed.length === 1) {
+        const u = urlParsed[0];
+        const meta = [];
+        if (u.host) meta.push(`<span>域名</span><code>${escapeHtml(u.host)}</code>`);
+        if (u.path) meta.push(`<span>路径</span><code>${escapeHtml(u.path)}</code>`);
+        if (u.hash) meta.push(`<span>锚点</span><code>#${escapeHtml(u.hash)}</code>`);
+        $("urlMeta").innerHTML = meta.length ? `<div class="url-meta">${meta.join("")}</div>` : "";
+        const counts = {};
+        u.params.forEach((p) => { counts[p.key] = (counts[p.key] || 0) + 1; });
+        const rows = wanted.length ? u.params.filter((p) => wanted.includes(p.key)) : u.params;
+        if (!rows.length) {
+          $("urlResult").innerHTML = `<div class="json-hint">${u.params.length ? "没有符合筛选条件的参数" : "这条链接没有参数"}</div>`;
+          return;
+        }
+        let html = `<table class="ts-table url-table"><thead><tr><th class="url-row-no">#</th><th>参数名</th><th>值</th></tr></thead><tbody>`;
+        rows.forEach((p, i) => {
+          const dup = counts[p.key] > 1;
+          const tag = [dup ? "重复" : "", p.inHash ? "锚点内" : ""].filter(Boolean).join(" · ");
+          html += `<tr><td class="url-row-no">${i + 1}</td><td class="url-key${dup ? " url-dup" : ""}">${escapeHtml(p.key)}${tag ? ` <span class="ts-unit">${tag}</span>` : ""}</td>`
+            + `<td${p.value === "" ? ' class="url-empty"' : ""} title="原始值：${escapeHtml(p.raw)}">${p.value === "" ? "（空）" : escapeHtml(p.value)}</td></tr>`;
+        });
+        $("urlResult").innerHTML = html + "</tbody></table>";
+        return;
+      }
+
+      const keys = urlColumnKeys();
+      if (!keys.length) {
+        $("urlResult").innerHTML = `<div class="json-hint">这些链接都没有参数</div>`;
+        return;
+      }
+      let html = `<table class="ts-table url-table"><thead><tr><th class="url-row-no">#</th>${keys.map((k) => `<th>${escapeHtml(k)}</th>`).join("")}</tr></thead><tbody>`;
+      urlParsed.forEach((u, i) => {
+        html += `<tr><td class="url-row-no" title="${escapeHtml(u.input)}">${i + 1}</td>`;
+        keys.forEach((k) => {
+          const vals = urlValuesFor(u, k);
+          html += vals.length
+            ? `<td>${escapeHtml(vals.join(" | "))}</td>`
+            : `<td class="url-empty">-</td>`;
+        });
+        html += "</tr>";
+      });
+      $("urlResult").innerHTML = html + "</tbody></table>";
+    }
+
+    function urlResultAsTsv() {
+      const wanted = urlFilterKeys();
+      if (urlParsed.length === 1) {
+        const u = urlParsed[0];
+        const rows = wanted.length ? u.params.filter((p) => wanted.includes(p.key)) : u.params;
+        return ["参数名\t值", ...rows.map((p) => `${p.key}\t${p.value}`)].join("\n");
+      }
+      const keys = urlColumnKeys();
+      return [["链接", ...keys].join("\t"), ...urlParsed.map((u) => [u.input, ...keys.map((k) => urlValuesFor(u, k).join(" | "))].join("\t"))].join("\n");
+    }
+
+    urlInput.addEventListener("input", renderUrlResult);
+    $("urlParamFilter").addEventListener("input", renderUrlResult);
+    $("btnUrlDemo").addEventListener("click", () => {
+      urlInput.value = [
+        "https://www.example.com/p/12345?utm_source=wechat&utm_medium=share&keyword=%E6%89%AB%E5%9C%B0%E6%9C%BA%E5%99%A8%E4%BA%BA&page=2&from=search",
+        "https://www.example.com/p/67890?utm_source=app&keyword=%E7%A9%BA%E6%B0%94%E7%82%B8%E9%94%85&page=1",
+      ].join("\n");
+      renderUrlResult();
+    });
+    $("btnUrlClear").addEventListener("click", () => {
+      urlInput.value = "";
+      renderUrlResult();
+    });
+    $("btnUrlCopy").addEventListener("click", async () => {
+      if (!urlParsed.some((u) => u.params.length)) {
+        showToast("没有可复制的结果");
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(urlResultAsTsv());
+        showToast("已复制，可直接粘贴到 Excel");
+      } catch {
+        showToast("复制失败，请手动选择复制");
+      }
+    });
+
+    function setCodecOutput(text) {
+      $("codecOutput").textContent = text;
+      $("codecOutput").classList.toggle("empty", !text);
+      if (!text) $("codecOutput").textContent = "结果会显示在这里…";
+    }
+    $("btnEncode").addEventListener("click", () => {
+      setCodecOutput($("codecInput").value ? encodeURIComponent($("codecInput").value) : "");
+    });
+    $("btnDecode").addEventListener("click", () => {
+      setCodecOutput($("codecInput").value ? decodeUrlPart($("codecInput").value) : "");
+    });
+    $("btnCodecCopy").addEventListener("click", async () => {
+      if ($("codecOutput").classList.contains("empty")) {
+        showToast("没有可复制的结果");
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText($("codecOutput").textContent);
+        showToast("已复制到剪贴板");
+      } catch {
+        showToast("复制失败，请手动选择复制");
+      }
+    });
   </script>
 </body>
 </html>

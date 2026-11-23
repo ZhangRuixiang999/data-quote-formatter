@@ -56,6 +56,11 @@ gh repo create data-quote-formatter --public --source=. --remote=origin --push
 - 可切换北京时间 / UTC
 - 生成 Hive / ClickHouse 的转换 SQL（时间戳转 `yyyy-MM-dd`、日期转时间戳）
 
+### URL 参数解析
+- 粘贴一条或多条链接，把参数拆成表格，中文编码（如 `%E6%89%AB...`）自动还原
+- 多条链接时每个参数一列，可只看指定参数，结果可直接粘贴到 Excel
+- 附带编码 / 解码小工具
+
 ## 本地使用
 
 直接用浏览器打开 `index.html` 即可，无需安装依赖。
