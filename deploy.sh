@@ -27,7 +27,7 @@ else
     --public \
     --source=. \
     --remote=origin \
-    --description "数据格式化工具 - 数据加引号 & CSV 转 Excel" \
+    --description "数据格式化工具 - 数据加引号 / CSV 转 Excel / JSON 转 SQL / 时间戳转换" \
     --push
 fi
 
