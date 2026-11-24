@@ -78,17 +78,19 @@
       gap: 1rem;
     }
     .header-main { flex: 1; min-width: 0; }
-    header { margin-bottom: 2rem; }
+    header { margin-bottom: 1.25rem; }
+    .title-line { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.35rem; }
     header h1 {
-      font-size: clamp(1.4rem, 4vw, 1.75rem);
+      font-size: 1.4rem;
       font-weight: 700;
-      letter-spacing: -0.02em;
-      margin: 0 0 0.5rem;
+      letter-spacing: 0;
+      line-height: 1.3;
+      margin: 0;
     }
     header .desc {
       margin: 0;
       color: var(--muted);
-      font-size: 0.88rem;
+      font-size: 0.85rem;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -100,23 +102,18 @@
     }
     .badge {
       display: inline-block;
-      font-size: 0.7rem;
+      font-size: 0.68rem;
       font-weight: 600;
-      letter-spacing: 0.08em;
+      letter-spacing: 0;
       color: var(--accent);
       background: var(--accent-soft);
-      padding: 0.25rem 0.6rem;
+      padding: 0.15rem 0.5rem;
       border-radius: 6px;
-      margin-bottom: 0.75rem;
     }
     .example {
-      margin-top: 1rem;
-      padding: 0.75rem 1rem;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: var(--surface-deep);
-      font-size: 0.82rem;
-      color: var(--muted);
+      margin-top: 0.15rem;
+      font-size: 0.8rem;
+      color: var(--placeholder);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -130,10 +127,11 @@
       flex-shrink: 0;
       display: flex;
       align-items: center;
-      gap: 0.35rem;
+      justify-content: center;
+      width: 2.25rem;
+      height: 2.25rem;
+      padding: 0;
       font-family: inherit;
-      font-size: 0.8rem;
-      padding: 0.45rem 0.75rem;
       border-radius: 10px;
       border: 1px solid var(--border);
       background: var(--surface);
@@ -143,6 +141,7 @@
     }
     .theme-toggle:hover { background: var(--surface-hover); border-color: var(--accent); }
     .theme-toggle svg { width: 1rem; height: 1rem; flex-shrink: 0; }
+    .theme-toggle svg[hidden] { display: none; }
     .grid {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -156,7 +155,6 @@
       .wrap { padding: 1.5rem 0.85rem 3rem; }
       header { margin-bottom: 1.25rem; }
       .tool-tab { padding: 0.45rem 0.75rem; }
-      .theme-toggle #themeLabel { display: none; }
       .options { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.85rem 1rem; padding: 0.85rem; }
     }
     .panel {
@@ -332,17 +330,8 @@
       user-select: none;
     }
     .checkbox-row input { accent-color: var(--accent); width: 1rem; height: 1rem; }
-    .status-bar {
-      margin-top: 1rem;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.75rem 1.25rem;
-      font-size: 0.82rem;
-      color: var(--muted);
-    }
-    .status-bar .count { color: var(--positive); font-weight: 600; }
-    .status-bar .detected { color: var(--accent); }
+    .panel-detected { font-size: 0.75rem; color: var(--accent); }
+    .panel-detected:empty { display: none; }
     .btn {
       font-family: inherit;
       font-size: 0.8rem;
@@ -816,15 +805,16 @@
     <header>
       <div class="header-row">
         <div class="header-main">
-          <span class="badge">SQL / Python 辅助</span>
-          <h1>数据格式化工具</h1>
+          <div class="title-line">
+            <h1>数据格式化工具</h1>
+            <span class="badge">SQL / Python 辅助</span>
+          </div>
           <p class="desc" id="headerDesc">粘贴文本、粘贴 Excel 表格或上传文件，自动识别分隔符，输出 <code>('值1','值2',…)</code> 格式</p>
           <div class="example" id="headerExample">示例：输入 适宠家居、老年宠物 → 输出 <code>('适宠家居','老年宠物')</code></div>
         </div>
-        <button type="button" class="theme-toggle" id="themeToggle" title="切换背景颜色">
+        <button type="button" class="theme-toggle" id="themeToggle" title="切换到浅色模式" aria-label="切换到浅色模式">
           <svg id="iconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
           <svg id="iconSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" hidden><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-          <span id="themeLabel">浅色</span>
         </button>
       </div>
     </header>
@@ -871,6 +861,7 @@
               去重后 <span class="num" id="uniqueCount">0</span> 项<span id="dupWrap" hidden> ·
               重复 <span class="dup" id="dupCount">0</span> 项</span>
             </span>
+            <span class="panel-detected" id="detectedMode"></span>
           </div>
           <div class="panel-actions">
             <button type="button" class="btn btn-success" id="btnCopy">复制结果</button>
@@ -951,11 +942,6 @@
       </div>
     </div>
 
-    <div class="status-bar">
-      <span>已解析 <span class="count" id="itemCount">0</span> 项</span>
-      <span>去重后 <span class="count" id="uniqueCountBar">0</span> 项</span>
-      <span class="detected" id="detectedMode"></span>
-    </div>
     </div>
 
     <div id="panelCsv" class="tool-panel">
@@ -1286,7 +1272,6 @@
     const input = $("inputArea");
     const output = $("output");
     const previewTags = $("previewTags");
-    const itemCount = $("itemCount");
     const detectedMode = $("detectedMode");
     const toast = $("toast");
     const colPicker = $("colPicker");
@@ -1621,8 +1606,6 @@
       const { items, detected, rawCount = 0, uniqueCount = 0 } = parseInput(input.value);
       const result = formatOutput(items);
 
-      itemCount.textContent = rawCount;
-      $("uniqueCountBar").textContent = uniqueCount;
       $("rawCount").textContent = rawCount;
       $("uniqueCount").textContent = uniqueCount;
       $("dupCount").textContent = rawCount - uniqueCount;
@@ -1651,14 +1634,17 @@
     const html = document.documentElement;
     const iconMoon = $("iconMoon");
     const iconSun = $("iconSun");
-    const themeLabel = $("themeLabel");
 
     function applyTheme(theme) {
       html.setAttribute("data-theme", theme);
       const isDark = theme === "dark";
-      iconMoon.hidden = !isDark;
-      iconSun.hidden = isDark;
-      themeLabel.textContent = isDark ? "浅色" : "深色";
+      // The icon shows the mode a click switches to.
+      // SVG elements have no .hidden property, so toggle the attribute directly.
+      iconSun.toggleAttribute("hidden", !isDark);
+      iconMoon.toggleAttribute("hidden", isDark);
+      const label = isDark ? "切换到浅色模式" : "切换到深色模式";
+      $("themeToggle").title = label;
+      $("themeToggle").setAttribute("aria-label", label);
       localStorage.setItem("dqf-theme", theme);
     }
 
