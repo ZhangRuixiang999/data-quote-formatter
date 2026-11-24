@@ -9,8 +9,8 @@
   <title>数据格式化工具</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <!-- Loaded without blocking first paint; the page falls back to system fonts if this is unreachable. -->
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
   <style>
     :root,
     [data-theme="dark"] {
@@ -145,12 +145,19 @@
     .theme-toggle svg { width: 1rem; height: 1rem; flex-shrink: 0; }
     .grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       gap: 1.25rem;
     }
     @media (max-width: 800px) {
-      .grid { grid-template-columns: 1fr; }
+      .grid { grid-template-columns: minmax(0, 1fr); }
       header .desc, .example { white-space: normal; }
+    }
+    @media (max-width: 560px) {
+      .wrap { padding: 1.5rem 0.85rem 3rem; }
+      header { margin-bottom: 1.25rem; }
+      .tool-tab { padding: 0.45rem 0.75rem; }
+      .theme-toggle #themeLabel { display: none; }
+      .options { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.85rem 1rem; padding: 0.85rem; }
     }
     .panel {
       background: var(--surface);
@@ -407,7 +414,11 @@
       border: 1px solid var(--border);
       border-radius: 12px;
       width: fit-content;
+      max-width: 100%;
+      overflow-x: auto;
+      scrollbar-width: none;
     }
+    .tool-tabs::-webkit-scrollbar { display: none; }
     .tool-tab {
       font-family: inherit;
       font-size: 0.85rem;
@@ -418,6 +429,8 @@
       background: transparent;
       color: var(--muted);
       cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
       transition: background 0.15s, color 0.15s;
     }
     .tool-tab:hover { color: var(--text); background: var(--surface-hover); }
@@ -756,7 +769,7 @@
     }
     .ts-now code { font-family: var(--mono); color: var(--text); }
     .ts-sql-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-top: 1.25rem; }
-    @media (max-width: 800px) { .ts-sql-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 800px) { .ts-sql-grid { grid-template-columns: minmax(0, 1fr); } }
     .ts-sql-grid .panel { min-height: 0; }
     .ts-sql-grid .output-box { min-height: 0; white-space: pre; overflow-x: auto; word-break: normal; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.78rem; line-height: 1.6; }
 
@@ -806,7 +819,7 @@
           <span class="badge">SQL / Python 辅助</span>
           <h1>数据格式化工具</h1>
           <p class="desc" id="headerDesc">粘贴文本、粘贴 Excel 表格或上传文件，自动识别分隔符，输出 <code>('值1','值2',…)</code> 格式</p>
-          <div class="example" id="headerExample">示例：输入 a、b（每行一项）→ 输出 <code>('a','b')</code></div>
+          <div class="example" id="headerExample">示例：输入 适宠家居、老年宠物 → 输出 <code>('适宠家居','老年宠物')</code></div>
         </div>
         <button type="button" class="theme-toggle" id="themeToggle" title="切换背景颜色">
           <svg id="iconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -1280,6 +1293,30 @@
     const extractMode = $("extractMode");
 
     let toastTimer = null;
+
+    // SheetJS is only needed for Excel upload and CSV-to-Excel, so it is fetched on first use
+    // instead of blocking the whole page on an external CDN.
+    const XLSX_SRC = "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js";
+    let xlsxLoading = null;
+    function loadXlsx() {
+      if (window.XLSX) return Promise.resolve(window.XLSX);
+      if (!xlsxLoading) {
+        xlsxLoading = new Promise((resolve, reject) => {
+          const s = document.createElement("script");
+          s.src = XLSX_SRC;
+          s.onload = () => (window.XLSX ? resolve(window.XLSX) : reject(new Error("XLSX missing")));
+          s.onerror = () => {
+            s.remove();
+            reject(new Error("XLSX load failed"));
+          };
+          document.head.appendChild(s);
+        }).catch((err) => {
+          xlsxLoading = null;
+          throw err;
+        });
+      }
+      return xlsxLoading;
+    }
     let selectedCol = 0;
     let lastHeaderKey = "";
 
@@ -1736,7 +1773,13 @@
       const ext = file.name.split(".").pop().toLowerCase();
       if (["xlsx", "xls"].includes(ext)) {
         const reader = new FileReader();
-        reader.onload = (e) => {
+        reader.onload = async (e) => {
+          try {
+            await loadXlsx();
+          } catch {
+            showToast("Excel 组件加载失败，请检查网络后重试");
+            return;
+          }
           try {
             const wb = XLSX.read(e.target.result, { type: "array" });
             const sheet = wb.Sheets[wb.SheetNames[0]];
@@ -1765,7 +1808,7 @@
     // ── Tab 切换 ──
     const TAB_META = {
       quote: {
-        desc: "粘贴文本、表格或上传文件，自动识别分隔符，输出加引号格式",
+        desc: "粘贴文本、粘贴 Excel 表格或上传文件，自动识别分隔符，输出 <code>('值1','值2',…)</code> 格式",
         example: "示例：输入 适宠家居、老年宠物 → 输出 <code>('适宠家居','老年宠物')</code>",
       },
       csv2xlsx: {
@@ -1786,23 +1829,31 @@
       },
     };
 
-    document.querySelectorAll(".tool-tab").forEach((tab) => {
-      tab.addEventListener("click", () => {
-        const name = tab.dataset.tab;
-        document.querySelectorAll(".tool-tab").forEach((t) => {
-          const on = t.dataset.tab === name;
-          t.classList.toggle("active", on);
-          t.setAttribute("aria-selected", on ? "true" : "false");
-        });
-        $("panelQuote").classList.toggle("active", name === "quote");
-        $("panelCsv").classList.toggle("active", name === "csv2xlsx");
-        $("panelJson").classList.toggle("active", name === "json2hive");
-        $("panelTs").classList.toggle("active", name === "timestamp");
-        $("panelUrl").classList.toggle("active", name === "url");
-        const meta = TAB_META[name];
-        $("headerDesc").innerHTML = meta.desc;
-        $("headerExample").innerHTML = meta.example;
+    const TAB_KEY = "dqf-tab";
+    function activateTab(name, remember) {
+      if (!TAB_META[name]) name = "quote";
+      document.querySelectorAll(".tool-tab").forEach((t) => {
+        const on = t.dataset.tab === name;
+        t.classList.toggle("active", on);
+        t.setAttribute("aria-selected", on ? "true" : "false");
+        if (on) t.scrollIntoView({ block: "nearest", inline: "nearest" });
       });
+      $("panelQuote").classList.toggle("active", name === "quote");
+      $("panelCsv").classList.toggle("active", name === "csv2xlsx");
+      $("panelJson").classList.toggle("active", name === "json2hive");
+      $("panelTs").classList.toggle("active", name === "timestamp");
+      $("panelUrl").classList.toggle("active", name === "url");
+      const meta = TAB_META[name];
+      $("headerDesc").innerHTML = meta.desc;
+      $("headerExample").innerHTML = meta.example;
+      // Warm up the Excel library in the background when the tab that needs it is opened.
+      if (name === "csv2xlsx") loadXlsx().catch(() => {});
+      if (remember) {
+        try { localStorage.setItem(TAB_KEY, name); } catch {}
+      }
+    }
+    document.querySelectorAll(".tool-tab").forEach((tab) => {
+      tab.addEventListener("click", () => activateTab(tab.dataset.tab, true));
     });
 
     // ── CSV 转 Excel ──
@@ -2028,7 +2079,13 @@
       }
 
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
+        try {
+          await loadXlsx();
+        } catch {
+          showToast("Excel 组件加载失败，请检查网络后重试");
+          return;
+        }
         try {
           csvRawBuffer = e.target.result;
           setDefaultOutputName(file.name);
@@ -3308,6 +3365,10 @@
         showToast("复制失败，请手动选择复制");
       }
     });
+
+    let savedTab = "quote";
+    try { savedTab = localStorage.getItem(TAB_KEY) || "quote"; } catch {}
+    activateTab(savedTab, false);
   </script>
 </body>
 </html>

@@ -68,4 +68,4 @@ gh repo create data-quote-formatter --public --source=. --remote=origin --push
 ## 技术说明
 
 - 单文件 `index.html`，无构建步骤
-- [SheetJS](https://sheetjs.com/) 用于 Excel 读写（CDN 加载）
+- [SheetJS](https://sheetjs.com/) 用于 Excel 读写，只在上传 Excel 或使用「CSV 转 Excel」时才从 CDN 加载，不影响其他功能打开
