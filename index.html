@@ -67,25 +67,19 @@
     }
     .wrap {
       position: relative;
-      max-width: 1100px;
+      width: 100%;
+      max-width: 1180px;
       margin: 0 auto;
-      padding: 2.5rem 1.25rem 4rem;
+      padding: 1.75rem 2rem 4rem;
+      min-width: 0;
     }
-    .header-row {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 1rem;
-    }
-    .header-main { flex: 1; min-width: 0; }
     header { margin-bottom: 1.25rem; }
-    .title-line { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.35rem; }
     header h1 {
-      font-size: 1.4rem;
+      font-size: 1.3rem;
       font-weight: 700;
       letter-spacing: 0;
       line-height: 1.3;
-      margin: 0;
+      margin: 0 0 0.3rem;
     }
     header .desc {
       margin: 0;
@@ -100,15 +94,66 @@
       font-size: 0.84em;
       color: var(--code-text);
     }
-    .badge {
-      display: inline-block;
-      font-size: 0.68rem;
-      font-weight: 600;
-      letter-spacing: 0;
-      color: var(--accent);
+
+    /* ── 左侧边栏 ── */
+    .app {
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr);
+      min-height: 100vh;
+      transition: grid-template-columns 0.2s;
+    }
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      gap: 1.1rem;
+      padding: 1rem 0.75rem;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+      z-index: 20;
+      transition: background 0.25s, border-color 0.25s;
+    }
+    .brand { display: flex; align-items: center; gap: 0.6rem; padding: 0.2rem 0.3rem; min-width: 0; }
+    .brand-mark {
+      width: 2rem;
+      height: 2rem;
+      flex-shrink: 0;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       background: var(--accent-soft);
-      padding: 0.15rem 0.5rem;
-      border-radius: 6px;
+      color: var(--accent);
+    }
+    .brand-mark svg { width: 1.1rem; height: 1.1rem; }
+    .brand-text { min-width: 0; }
+    .brand-name { font-size: 0.9rem; font-weight: 700; line-height: 1.3; white-space: nowrap; }
+    .sidebar-foot { margin-top: auto; display: flex; align-items: center; gap: 0.4rem; }
+    .app.collapsed { grid-template-columns: 64px minmax(0, 1fr); }
+    .app.collapsed .brand-text,
+    .app.collapsed .tab-label { display: none; }
+    .app.collapsed .brand { justify-content: center; padding: 0.2rem 0; }
+    .app.collapsed .tool-tab { justify-content: center; padding-left: 0; padding-right: 0; }
+    .app.collapsed .sidebar-foot { flex-direction: column; }
+    @media (max-width: 800px) {
+      .app, .app.collapsed { grid-template-columns: minmax(0, 1fr); }
+      .sidebar {
+        height: auto;
+        flex-direction: row;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+      .brand { display: none; }
+      .app.collapsed .tab-label { display: inline; }
+      .app.collapsed .tool-tab { padding: 0.45rem 0.65rem; }
+      .sidebar-foot, .app.collapsed .sidebar-foot { margin-top: 0; flex-direction: row; }
+      .sidebar .sidebar-toggle { display: none; }
     }
     .example {
       margin-top: 0.15rem;
@@ -152,9 +197,8 @@
       header .desc, .example { white-space: normal; }
     }
     @media (max-width: 560px) {
-      .wrap { padding: 1.5rem 0.85rem 3rem; }
+      .wrap { padding: 1.25rem 0.85rem 3rem; }
       header { margin-bottom: 1.25rem; }
-      .tool-tab { padding: 0.45rem 0.75rem; }
       .options { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.85rem 1rem; padding: 0.85rem; }
     }
     .panel {
@@ -396,25 +440,22 @@
     }
     .tool-tabs {
       display: flex;
-      gap: 0.5rem;
-      margin-bottom: 1.5rem;
-      padding: 0.35rem;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      width: fit-content;
-      max-width: 100%;
-      overflow-x: auto;
-      scrollbar-width: none;
+      flex-direction: column;
+      gap: 0.2rem;
+      min-width: 0;
     }
-    .tool-tabs::-webkit-scrollbar { display: none; }
     .tool-tab {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      width: 100%;
+      text-align: left;
       font-family: inherit;
       font-size: 0.85rem;
       font-weight: 500;
-      padding: 0.5rem 1rem;
+      padding: 0.55rem 0.65rem;
       border: none;
-      border-radius: 9px;
+      border-radius: 8px;
       background: transparent;
       color: var(--muted);
       cursor: pointer;
@@ -422,11 +463,22 @@
       flex-shrink: 0;
       transition: background 0.15s, color 0.15s;
     }
+    .tool-tab svg { width: 1.05rem; height: 1.05rem; flex-shrink: 0; }
     .tool-tab:hover { color: var(--text); background: var(--surface-hover); }
     .tool-tab.active {
       background: var(--accent-soft);
       color: var(--accent);
       font-weight: 600;
+    }
+    @media (max-width: 800px) {
+      .tool-tabs {
+        flex: 1;
+        flex-direction: row;
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+      .tool-tabs::-webkit-scrollbar { display: none; }
+      .tool-tab { width: auto; gap: 0.4rem; padding: 0.45rem 0.65rem; }
     }
     .tool-panel { display: none; }
     .tool-panel.active { display: block; }
@@ -801,31 +853,56 @@
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <div class="header-row">
-        <div class="header-main">
-          <div class="title-line">
-            <h1>数据格式化工具</h1>
-            <span class="badge">SQL / Python 辅助</span>
-          </div>
-          <p class="desc" id="headerDesc">粘贴文本、粘贴 Excel 表格或上传文件，自动识别分隔符，输出 <code>('值1','值2',…)</code> 格式</p>
-          <div class="example" id="headerExample">示例：输入 适宠家居、老年宠物 → 输出 <code>('适宠家居','老年宠物')</code></div>
-        </div>
-        <button type="button" class="theme-toggle" id="themeToggle" title="切换到浅色模式" aria-label="切换到浅色模式">
-          <svg id="iconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-          <svg id="iconSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" hidden><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-        </button>
+  <div class="app" id="app">
+  <aside class="sidebar">
+    <div class="brand" title="数据格式化工具">
+      <span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg></span>
+      <div class="brand-text">
+        <div class="brand-name">数据格式化工具</div>
       </div>
-    </header>
+    </div>
 
-    <nav class="tool-tabs" role="tablist">
-      <button type="button" class="tool-tab active" data-tab="quote" role="tab" aria-selected="true">数据格式修改</button>
-      <button type="button" class="tool-tab" data-tab="csv2xlsx" role="tab" aria-selected="false">CSV 转 Excel</button>
-      <button type="button" class="tool-tab" data-tab="json2hive" role="tab" aria-selected="false">JSON 转 SQL</button>
-      <button type="button" class="tool-tab" data-tab="timestamp" role="tab" aria-selected="false">时间戳转换</button>
-      <button type="button" class="tool-tab" data-tab="url" role="tab" aria-selected="false">URL 参数解析</button>
+    <nav class="tool-tabs" role="tablist" aria-orientation="vertical">
+      <button type="button" class="tool-tab active" data-tab="quote" role="tab" aria-selected="true" title="数据格式修改">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"/><path d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z"/></svg>
+        <span class="tab-label">数据格式修改</span>
+      </button>
+      <button type="button" class="tool-tab" data-tab="csv2xlsx" role="tab" aria-selected="false" title="CSV 转 Excel">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 9v12"/><path d="M15 9v12"/></svg>
+        <span class="tab-label">CSV 转 Excel</span>
+      </button>
+      <button type="button" class="tool-tab" data-tab="json2hive" role="tab" aria-selected="false" title="JSON 转 SQL">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/></svg>
+        <span class="tab-label">JSON 转 SQL</span>
+      </button>
+      <button type="button" class="tool-tab" data-tab="timestamp" role="tab" aria-selected="false" title="时间戳转换">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        <span class="tab-label">时间戳转换</span>
+      </button>
+      <button type="button" class="tool-tab" data-tab="url" role="tab" aria-selected="false" title="URL 参数解析">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        <span class="tab-label">URL 参数解析</span>
+      </button>
     </nav>
+
+    <div class="sidebar-foot">
+      <button type="button" class="theme-toggle" id="themeToggle" title="切换到浅色模式" aria-label="切换到浅色模式">
+        <svg id="iconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <svg id="iconSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" hidden><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      </button>
+      <button type="button" class="theme-toggle sidebar-toggle" id="sidebarToggle" title="收起侧边栏" aria-label="收起侧边栏">
+        <svg id="iconCollapse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/></svg>
+        <svg id="iconExpand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m14 9 3 3-3 3"/></svg>
+      </button>
+    </div>
+  </aside>
+
+  <main class="wrap">
+    <header>
+      <h1 id="toolTitle">数据格式修改</h1>
+      <p class="desc" id="headerDesc">粘贴文本、粘贴 Excel 表格或上传文件，自动识别分隔符，输出 <code>('值1','值2',…)</code> 格式</p>
+      <div class="example" id="headerExample">示例：输入 适宠家居、老年宠物 → 输出 <code>('适宠家居','老年宠物')</code></div>
+    </header>
 
     <div id="panelQuote" class="tool-panel active">
     <div class="grid">
@@ -1262,6 +1339,7 @@
         </div>
       </section>
     </div>
+  </main>
   </div>
 
   <div class="toast" id="toast"></div>
@@ -1653,6 +1731,26 @@
       applyTheme(next);
     });
 
+    // Sidebar collapse (desktop only; on narrow screens the sidebar becomes a top bar).
+    const SIDEBAR_KEY = "dqf-sidebar-collapsed";
+    function setSidebarCollapsed(collapsed) {
+      $("app").classList.toggle("collapsed", collapsed);
+      $("iconCollapse").toggleAttribute("hidden", collapsed);
+      $("iconExpand").toggleAttribute("hidden", !collapsed);
+      const label = collapsed ? "展开侧边栏" : "收起侧边栏";
+      $("sidebarToggle").title = label;
+      $("sidebarToggle").setAttribute("aria-label", label);
+      try { localStorage.setItem(SIDEBAR_KEY, collapsed ? "1" : "0"); } catch {}
+    }
+    $("sidebarToggle").addEventListener("click", () => {
+      setSidebarCollapsed(!$("app").classList.contains("collapsed"));
+    });
+    {
+      let collapsed = false;
+      try { collapsed = localStorage.getItem(SIDEBAR_KEY) === "1"; } catch {}
+      setSidebarCollapsed(collapsed);
+    }
+
     applyTheme(localStorage.getItem("dqf-theme") || "dark");
 
     function applyDefaultOptions() {
@@ -1822,7 +1920,15 @@
         const on = t.dataset.tab === name;
         t.classList.toggle("active", on);
         t.setAttribute("aria-selected", on ? "true" : "false");
-        if (on) t.scrollIntoView({ block: "nearest", inline: "nearest" });
+        // On narrow screens the tabs form a horizontal strip; scroll only the strip, never the page.
+        if (on) {
+          const strip = t.parentElement;
+          if (strip.scrollWidth > strip.clientWidth) {
+            const left = t.offsetLeft - strip.offsetLeft;
+            if (left < strip.scrollLeft) strip.scrollLeft = left;
+            else if (left + t.offsetWidth > strip.scrollLeft + strip.clientWidth) strip.scrollLeft = left + t.offsetWidth - strip.clientWidth;
+          }
+        }
       });
       $("panelQuote").classList.toggle("active", name === "quote");
       $("panelCsv").classList.toggle("active", name === "csv2xlsx");
@@ -1830,6 +1936,8 @@
       $("panelTs").classList.toggle("active", name === "timestamp");
       $("panelUrl").classList.toggle("active", name === "url");
       const meta = TAB_META[name];
+      const label = document.querySelector(`.tool-tab[data-tab="${name}"] .tab-label`);
+      $("toolTitle").textContent = label ? label.textContent : "";
       $("headerDesc").innerHTML = meta.desc;
       $("headerExample").innerHTML = meta.example;
       // Warm up the Excel library in the background when the tab that needs it is opened.
